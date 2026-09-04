@@ -79,6 +79,11 @@
   }
   function track(eventName, properties) {
     if (!hasConsent()) return false;
+    var allowedEvents = ["page_view", "engagement", "click", "scroll", "cta_click", "conversion"];
+    if (allowedEvents.indexOf(eventName) === -1) {
+      properties = Object.assign({ conversionId: eventName }, properties || {});
+      eventName = "cta_click";
+    }
     queue.push(Object.assign(base(eventName), properties || {}));
     if (config.debug) console.info("[MOGCIA]", queue[queue.length - 1]);
     clearTimeout(flushTimer);
@@ -90,8 +95,8 @@
     if (!queue.length) return;
     var batch = queue.splice(0, 20);
     var body = JSON.stringify({ schemaVersion: 1, events: batch });
-    if (!navigator.sendBeacon || !navigator.sendBeacon(config.endpoint, new Blob([body], { type: "application/json" }))) {
-      fetch(config.endpoint, { method: "POST", body: body, headers: { "content-type": "application/json" }, keepalive: true, credentials: "omit" }).catch(function () { queue.unshift.apply(queue, batch); });
+    if (!navigator.sendBeacon || !navigator.sendBeacon(config.endpoint, new Blob([body], { type: "text/plain;charset=UTF-8" }))) {
+      fetch(config.endpoint, { method: "POST", body: body, headers: { "content-type": "text/plain;charset=UTF-8" }, keepalive: true, credentials: "omit" }).catch(function () { queue.unshift.apply(queue, batch); });
     }
   }
   function onClick(event) {
@@ -199,7 +204,7 @@
   addEventListener("scroll", onScroll, { passive: true });
   addEventListener("popstate", routeChanged);
   addEventListener("pagehide", function () { trackEngagement(); flush(); });
-  window.MogciaAnalytics = { track: track, flush: flush, consent: consent, showConsent: function () { showConsent(true); }, version: "1.2.0" };
+  window.MogciaAnalytics = { track: track, flush: flush, consent: consent, showConsent: function () { showConsent(true); }, version: "1.2.1" };
   track("page_view");
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { showConsent(false); }, { once: true });
   else showConsent(false);
