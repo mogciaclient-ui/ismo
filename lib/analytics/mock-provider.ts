@@ -15,6 +15,8 @@ let settings: SiteSettings = {
   domain: "mogcia.jp",
   timezone: "Asia/Tokyo",
   consentMode: "required",
+  privacyUrl: "https://www.mogcia.net/privacy-policy",
+  retentionDays: 395,
   excludedIps: [],
   conversionRules: [
     { id: "contact", name: "問い合わせ完了", eventName: "contact_submit", matchType: "url_contains", matchValue: "/contact/thanks", enabled: true },

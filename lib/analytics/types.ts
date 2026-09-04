@@ -93,6 +93,8 @@ export type SiteSettings = {
   domain: string;
   timezone: string;
   consentMode: "required" | "analytics_only";
+  privacyUrl?: string;
+  retentionDays?: number;
   excludedIps: string[];
   conversionRules: ConversionRule[];
   ownerUid?: string;

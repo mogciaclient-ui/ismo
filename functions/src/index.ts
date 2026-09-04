@@ -146,11 +146,13 @@ export const collect = onRequest({ region, cors: false, maxInstances: 20, timeou
     setCors(res, requestOrigin);
 
     const cleaned = events.map((event: unknown) => applyConversionRules(cleanEvent(event, siteId), site.conversionRules));
+    const retentionDays = Math.min(730, Math.max(30, Number(site.retentionDays ?? 395)));
+    const expiresAt = Timestamp.fromMillis(Date.now() + retentionDays * 24 * 60 * 60 * 1000);
     const batch = db.batch();
     for (const event of cleaned) {
       const ref = db.doc(`sites/${siteId}/events/${event.eventId}`);
       const storedEvent = Object.fromEntries(Object.entries(event).filter(([, value]) => value !== undefined));
-      batch.set(ref, { ...storedEvent, occurredAt: Timestamp.fromDate(new Date(event.occurredAt)), receivedAt: FieldValue.serverTimestamp() });
+      batch.set(ref, { ...storedEvent, occurredAt: Timestamp.fromDate(new Date(event.occurredAt)), receivedAt: FieldValue.serverTimestamp(), expiresAt });
     }
     await batch.commit();
     res.status(202).json({ accepted: cleaned.length });
@@ -208,7 +210,7 @@ async function loadEvents(siteId: string, input: unknown, limit = 50_000) {
 
 export const getOverview = onCall({ region, enforceAppCheck: true }, async request => {
   const siteId = requireString(request.data?.siteId, "siteId", 80);
-  await requireSiteAccess(request.auth, siteId);
+  const site = await requireSiteAccess(request.auth, siteId);
   const events = await loadEvents(siteId, request.data?.range);
   const pageViews = events.filter(event => event.eventName === "page_view");
   const sessions = new Set(events.map(event => event.sessionId));
@@ -238,9 +240,15 @@ export const getOverview = onCall({ region, enforceAppCheck: true }, async reque
     trendMap.set(day, row);
   }
   const conversionEvents = events.filter(event => event.eventName === "conversion" || Boolean(event.conversionId));
+  const conversionNames = new Map<string, string>((Array.isArray(site.conversionRules) ? site.conversionRules : []).flatMap((rule: unknown) => {
+    if (!rule || typeof rule !== "object") return [];
+    const value = rule as Record<string, unknown>;
+    return typeof value.id === "string" && typeof value.name === "string" ? [[value.id, value.name] as [string, string]] : [];
+  }));
   const conversionGroups = new Map<string, { sessions: Set<string>; outcomes: number }>();
   for (const event of conversionEvents) {
-    const key = event.conversionId ?? "conversion";
+    const rawKey = event.conversionId ?? "conversion";
+    const key = conversionNames.get(rawKey) ?? rawKey;
     const group = conversionGroups.get(key) ?? { sessions: new Set<string>(), outcomes: 0 };
     group.sessions.add(event.sessionId); group.outcomes += 1; conversionGroups.set(key, group);
   }

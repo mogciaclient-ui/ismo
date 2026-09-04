@@ -31,7 +31,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       if (!snapshot.exists()) {
         await setDoc(ref, {
           id: siteId, name: "My Website", domain: location.hostname,
-          timezone: "Asia/Tokyo", consentMode: "required",
+          timezone: "Asia/Tokyo", consentMode: "required", privacyUrl: "", retentionDays: 395,
           excludedIps: [], conversionRules: [], ownerUid: user.uid,
           memberUids: [user.uid], createdAt: new Date().toISOString(),
         });
