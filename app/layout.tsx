@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./measurement.css";
 import "./product.css";
+import "./brand.css";
 
 export const metadata: Metadata = {
-  title: "MOGCIA Web Analytics",
-  description: "目的と導線から改善につなげるWeb分析ダッシュボード",
+  title: "ismo. | Web Analytics",
+  description: "気づきを、もっとやさしく。HP・LPの改善点が見つかるWeb分析プロダクト。",
+  icons: { icon: "/icon.png", apple: "/icon.png" },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

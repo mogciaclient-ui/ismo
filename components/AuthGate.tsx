@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, ReactNode, useEffect, useState } from "react";
+import Image from "next/image";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { getCurrentSiteId, getFirebaseServices, isFirebaseConfigured } from "@/lib/firebase/client";
@@ -54,7 +55,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (!ready) return <main className="auth-shell"><div className="auth-card"><p>接続を確認しています…</p></div></main>;
   if (!isFirebaseConfigured) return <>{children}</>;
   if (!user) return <main className="auth-shell"><form className="auth-card" onSubmit={submit}>
-    <div className="logo auth-logo"><span>M</span><div><b>MOGCIA</b><small>WEB ANALYTICS</small></div></div>
+    <div className="logo auth-logo"><Image src="/ismo-symbol.png" width={38} height={38} alt="" priority/><div><b>ismo.</b><small>WEB ANALYTICS</small></div></div>
     <h1>ログイン</h1>
     <p>管理者から発行されたアカウントでログインしてください。</p>
     <label><span>メールアドレス</span><input type="email" autoComplete="email" required value={email} onChange={event => setEmail(event.target.value)} /></label>
