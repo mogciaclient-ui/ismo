@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase-admin/app";
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
-import { defineSecret, defineString } from "firebase-functions/params";
+import { defineSecret } from "firebase-functions/params";
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
 import OpenAI from "openai";
@@ -9,7 +9,7 @@ initializeApp();
 const db = getFirestore();
 const region = "asia-northeast1";
 const openAiKey = defineSecret("OPENAI_API_KEY");
-const openAiModel = defineString("OPENAI_MODEL", { default: "gpt-5.6-luna" });
+const openAiModel = "gpt-5.6-luna";
 
 type DeviceType = "desktop" | "mobile" | "tablet";
 type DateRange = { from: string; to: string };
@@ -264,7 +264,7 @@ export const getAiInsight = onCall({ region, enforceAppCheck: true, secrets: [op
   };
   const client = new OpenAI({ apiKey: openAiKey.value() });
   const response = await client.responses.create({
-    model: openAiModel.value(),
+    model: openAiModel,
     max_output_tokens: 700,
     input: [
       { role: "system", content: "あなたはWeb解析担当です。提供された集計値だけを根拠に、日本語で簡潔に回答してください。個人の推測、存在しない比較値、断定的な因果関係を作らないでください。回答は現状、根拠、推奨アクションの順にしてください。" },
