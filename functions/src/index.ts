@@ -418,19 +418,27 @@ function structuredJson(text: string) {
 }
 
 export const analyzeSite = onCall({ region, enforceAppCheck: true, secrets: [openAiKey], timeoutSeconds: 90, maxInstances: 5 }, async request => {
-  const siteId = requireString(request.data?.siteId, "siteId", 80);
-  const site = await requireSiteAccess(request.auth, siteId);
-  if (site.ownerUid !== request.auth!.uid) throw new HttpsError("permission-denied", "MOGCIA権限が必要です");
-  const pages = await crawlSite(requireString(site.domain, "domain", 500));
-  const client = new OpenAI({ apiKey: openAiKey.value() });
-  const response = await client.responses.create({ model: openAiModel, max_output_tokens: 1200, input: [
-    { role: "system", content: "Webサイトの公開文言だけを根拠に分析します。JSONだけを返し、書かれていない事実を作らないでください。" },
-    { role: "user", content: `Strategy: ${JSON.stringify(site.strategy ?? {})}\nCrawled pages: ${JSON.stringify(pages)}\nJSON schema: {"summary":"string","mainMessage":"string","target":"string","strengths":["string"],"trustElements":["string"],"ctas":["string"],"sections":["FV|Problem|Solution|Service|Feature|Price|Case Study|FAQ|CTA"],"recommendations":["string"],"pages":[{"url":"string","title":"string","summary":"string"}]}` },
-  ] });
-  const result = { analyzedAt: new Date().toISOString(), ...structuredJson(response.output_text) };
-  const history = Array.isArray(site.analysisHistory) ? site.analysisHistory.slice(0, 9) : [];
-  await db.doc(`sites/${siteId}`).set({ siteAnalysis: result, analysisHistory: [result, ...history], updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-  return result;
+  try {
+    const siteId = requireString(request.data?.siteId, "siteId", 80);
+    const site = await requireSiteAccess(request.auth, siteId);
+    if (site.ownerUid !== request.auth!.uid) throw new HttpsError("permission-denied", "MOGCIA権限が必要です");
+    const pages = await crawlSite(requireString(site.domain, "domain", 500));
+    const client = new OpenAI({ apiKey: openAiKey.value() });
+    const response = await client.responses.create({ model: openAiModel, reasoning: { effort: "low" }, text: { format: { type: "json_object" }, verbosity: "low" }, max_output_tokens: 3000, input: [
+      { role: "system", content: "Webサイトの公開文言だけを根拠に分析します。JSONだけを返し、書かれていない事実を作らないでください。" },
+      { role: "user", content: `Strategy: ${JSON.stringify(site.strategy ?? {})}\nCrawled pages: ${JSON.stringify(pages)}\nJSON schema: {"summary":"string","mainMessage":"string","target":"string","strengths":["string"],"trustElements":["string"],"ctas":["string"],"sections":["FV|Problem|Solution|Service|Feature|Price|Case Study|FAQ|CTA"],"recommendations":["string"],"pages":[{"url":"string","title":"string","summary":"string"}]}` },
+    ] });
+    if (!response.output_text.trim()) throw new Error(`OpenAI returned no text (${response.status})`);
+    const result = { analyzedAt: new Date().toISOString(), ...structuredJson(response.output_text) };
+    const history = Array.isArray(site.analysisHistory) ? site.analysisHistory.slice(0, 9) : [];
+    await db.doc(`sites/${siteId}`).set({ siteAnalysis: result, analysisHistory: [result, ...history], updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return result;
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    const detail = error instanceof Error ? error.message : "Unknown error";
+    logger.error("analyzeSite failed", { detail });
+    throw new HttpsError("internal", "サイト分析に失敗しました。しばらくしてから再度お試しください");
+  }
 });
 
 export const analyzeCompetitors = onCall({ region, enforceAppCheck: true, secrets: [openAiKey], timeoutSeconds: 120, maxInstances: 3 }, async request => {
@@ -441,7 +449,7 @@ export const analyzeCompetitors = onCall({ region, enforceAppCheck: true, secret
   if (!competitors.length) throw new HttpsError("failed-precondition", "競合サイトを1件以上登録してください");
   const pages = await Promise.all([{ name: "自社", url: site.domain }, ...competitors.map((item: Record<string, unknown>) => ({ name: String(item.name ?? "競合"), url: String(item.url ?? "") }))].map(async item => ({ name: item.name, text: await pageText(item.url) })));
   const client = new OpenAI({ apiKey: openAiKey.value() });
-  const response = await client.responses.create({ model: openAiModel, max_output_tokens: 1300, input: [
+  const response = await client.responses.create({ model: openAiModel, reasoning: { effort: "low" }, text: { format: { type: "json_object" }, verbosity: "low" }, max_output_tokens: 3000, input: [
     { role: "system", content: "自社と競合の公開Webサイトを比較します。事実と推論を混同せず、JSONだけを返してください。競合が触れていないことだけで市場機会と断定しないでください。" },
     { role: "user", content: `Strategy: ${JSON.stringify(site.strategy ?? {})}\nPages: ${JSON.stringify(pages)}\nJSON schema: {"common":["string"],"weakness":["string"],"strength":["string"],"opportunity":["string"],"recommendation":"string","positioning":[{"name":"string","x":0-100,"y":0-100}]}` },
   ] });
