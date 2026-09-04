@@ -542,7 +542,8 @@ button:active { transform: translateY(1px); }
 .member-add { display: grid; grid-template-columns: 1fr 140px auto; gap: 8px; margin: 18px 0; }
 .member-add input,
 .member-add select,
-.integration-cards input { height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: #fafafa; }
+.integration-cards input,
+.integration-cards select { height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: #fafafa; }
 .member-add button { display: flex; align-items: center; gap: 5px; padding: 0 13px; border: 0; border-radius: 8px; color: #fff; background: var(--ink); }
 .member-list article { display: flex; align-items: center; justify-content: space-between; padding: 13px 0; border-top: 1px solid var(--line); }
 .member-list article div { display: flex; flex-direction: column; gap: 4px; }
@@ -553,9 +554,22 @@ button:active { transform: translateY(1px); }
 .integration-cards article { padding: 18px; border: 1px solid var(--line); border-radius: 10px; }
 .integration-cards p { color: var(--muted); font-size: 9px; }
 .integration-cards label { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; color: var(--muted); font-size: 8px; }
-.integration-cards input { width: 100%; }
+.integration-cards input,
+.integration-cards select { width: 100%; }
 .integration-note { display: flex; gap: 10px; margin-top: 14px; padding: 13px; border-radius: 8px; background: #f1f1f3; color: var(--muted); }
 .integration-note p { margin: 0; font-size: 9px; line-height: 1.6; }
+.integration-note code { display: inline; overflow-wrap: anywhere; color: #555860; }
+.integration-state.connected { color: #39745f; background: #e9f5ef; }
+.google-connect { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-top: 18px; padding: 22px; border: 1px solid var(--line); border-radius: 11px; background: #fafafa; }
+.google-connect p { margin: 6px 0 0; color: var(--muted); font-size: 9px; }
+.google-connect button,
+.google-actions button:last-child { padding: 10px 14px; border: 0; border-radius: 8px; color: #fff; background: var(--ink); font-size: 9px; white-space: nowrap; }
+.google-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.google-actions .secondary { padding: 9px 13px; border: 1px solid var(--line); border-radius: 8px; color: #777a82; background: #fff; font-size: 9px; }
+.google-test-panel { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 12px; }
+.google-test-panel > button { padding: 9px 13px; border: 1px solid var(--line); border-radius: 8px; color: #555860; background: #fff; font-size: 9px; }
+.google-test-result { display: flex; align-items: center; gap: 9px; padding: 9px 12px; border-radius: 8px; color: #39745f; background: #e9f5ef; }
+.google-test-result p { margin: 3px 0 0; color: #668276; font-size: 8px; }
 
 @keyframes insight-spark {
   0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 #ff647c00); }

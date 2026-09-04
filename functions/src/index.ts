@@ -6,12 +6,40 @@ import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
 import OpenAI from "openai";
 import { lookup } from "node:dns/promises";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
 initializeApp();
 const db = getFirestore();
 const region = "asia-northeast1";
 const openAiKey = defineSecret("OPENAI_API_KEY");
+const googleOAuthClientId = defineSecret("GOOGLE_OAUTH_CLIENT_ID");
+const googleOAuthClientSecret = defineSecret("GOOGLE_OAUTH_CLIENT_SECRET");
+const googleTokenEncryptionKey = defineSecret("GOOGLE_TOKEN_ENCRYPTION_KEY");
 const openAiModel = "gpt-5.6-luna";
+const googleScopes = [
+  "https://www.googleapis.com/auth/analytics.readonly",
+  "https://www.googleapis.com/auth/webmasters.readonly",
+];
+
+function googleRedirectUri() {
+  const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || "ismo-67b86";
+  return `https://${region}-${projectId}.cloudfunctions.net/googleOAuthCallback`;
+}
+
+function encryptSecret(value: string) {
+  const key = createHash("sha256").update(googleTokenEncryptionKey.value()).digest();
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  return { ciphertext: ciphertext.toString("base64"), iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64") };
+}
+
+function decryptSecret(value: { ciphertext: string; iv: string; tag: string }) {
+  const key = createHash("sha256").update(googleTokenEncryptionKey.value()).digest();
+  const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(value.iv, "base64"));
+  decipher.setAuthTag(Buffer.from(value.tag, "base64"));
+  return Buffer.concat([decipher.update(Buffer.from(value.ciphertext, "base64")), decipher.final()]).toString("utf8");
+}
 
 type DeviceType = "desktop" | "mobile" | "tablet";
 type DateRange = { from: string; to: string };
@@ -355,6 +383,146 @@ export const setSiteMember = onCall({ region, enforceAppCheck: true }, async req
   const memberRoles = { ...(site.memberRoles ?? {}), [user.uid]: role };
   await db.doc(`sites/${siteId}`).set({ memberUids, memberRoles, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
   return { members: await siteMembers({ ...site, memberUids, memberRoles }) };
+});
+
+type EncryptedValue = { ciphertext: string; iv: string; tag: string };
+
+async function googleToken(siteId: string) {
+  const ref = db.doc(`sites/${siteId}/privateIntegrations/google`);
+  const snapshot = await ref.get();
+  if (!snapshot.exists) throw new HttpsError("failed-precondition", "Googleアカウントが未接続です");
+  const stored = snapshot.data() ?? {};
+  if (!stored.refreshToken?.ciphertext) throw new HttpsError("failed-precondition", "Googleの再認証が必要です");
+  const body = new URLSearchParams({
+    client_id: googleOAuthClientId.value(),
+    client_secret: googleOAuthClientSecret.value(),
+    refresh_token: decryptSecret(stored.refreshToken as EncryptedValue),
+    grant_type: "refresh_token",
+  });
+  const response = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body, signal: AbortSignal.timeout(15_000) });
+  const result = await response.json() as { access_token?: string; error?: string; error_description?: string };
+  if (!response.ok || !result.access_token) {
+    logger.warn("Google token refresh failed", { siteId, status: response.status, error: result.error });
+    throw new HttpsError("failed-precondition", "Googleの再認証が必要です");
+  }
+  return result.access_token;
+}
+
+async function googleJson(url: string, accessToken: string, init?: RequestInit) {
+  const response = await fetch(url, { ...init, headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json", ...(init?.headers ?? {}) }, signal: AbortSignal.timeout(20_000) });
+  const result = await response.json() as Record<string, unknown>;
+  if (!response.ok) {
+    logger.warn("Google API request failed", { endpoint: new URL(url).hostname, status: response.status });
+    throw new HttpsError("failed-precondition", "Google APIからデータを取得できませんでした。権限とAPI設定を確認してください");
+  }
+  return result;
+}
+
+export const startGoogleOAuth = onCall({ region, enforceAppCheck: true, secrets: [googleOAuthClientId] }, async request => {
+  const siteId = requireString(request.data?.siteId, "siteId", 80);
+  const site = await requireSiteAccess(request.auth, siteId);
+  if (site.ownerUid !== request.auth!.uid) throw new HttpsError("permission-denied", "MOGCIA権限が必要です");
+  const state = randomBytes(32).toString("base64url");
+  await db.doc(`googleOAuthStates/${state}`).set({ siteId, uid: request.auth!.uid, expiresAt: Timestamp.fromMillis(Date.now() + 10 * 60 * 1000), createdAt: FieldValue.serverTimestamp() });
+  const query = new URLSearchParams({
+    client_id: googleOAuthClientId.value(),
+    redirect_uri: googleRedirectUri(),
+    response_type: "code",
+    access_type: "offline",
+    include_granted_scopes: "true",
+    prompt: "consent",
+    scope: googleScopes.join(" "),
+    state,
+  });
+  return { authorizationUrl: `https://accounts.google.com/o/oauth2/v2/auth?${query}`, redirectUri: googleRedirectUri() };
+});
+
+export const googleOAuthCallback = onRequest({ region, secrets: [googleOAuthClientId, googleOAuthClientSecret, googleTokenEncryptionKey], timeoutSeconds: 30 }, async (req, res) => {
+  const fail = (reason: string) => res.redirect(302, `https://ismo-data.app/?google=error&reason=${encodeURIComponent(reason)}`);
+  try {
+    const state = requireString(req.query.state, "state", 200);
+    const code = requireString(req.query.code, "code", 4000);
+    const stateRef = db.doc(`googleOAuthStates/${state}`);
+    const stateSnapshot = await stateRef.get();
+    const saved = stateSnapshot.data();
+    if (!stateSnapshot.exists || !(saved?.expiresAt instanceof Timestamp) || saved.expiresAt.toMillis() < Date.now()) return void fail("state_expired");
+    await stateRef.delete();
+    const body = new URLSearchParams({ client_id: googleOAuthClientId.value(), client_secret: googleOAuthClientSecret.value(), code, grant_type: "authorization_code", redirect_uri: googleRedirectUri() });
+    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body, signal: AbortSignal.timeout(15_000) });
+    const tokens = await tokenResponse.json() as { refresh_token?: string; scope?: string; error?: string };
+    if (!tokenResponse.ok || !tokens.refresh_token) {
+      logger.warn("Google OAuth exchange failed", { status: tokenResponse.status, error: tokens.error });
+      return void fail(tokens.refresh_token ? "token_exchange" : "refresh_token_missing");
+    }
+    const siteId = requireString(saved.siteId, "siteId", 80);
+    await db.doc(`sites/${siteId}/privateIntegrations/google`).set({ refreshToken: encryptSecret(tokens.refresh_token), scopes: tokens.scope?.split(" ") ?? googleScopes, connectedByUid: saved.uid, connectedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+    await db.doc(`sites/${siteId}`).set({ integrations: { googleConnectionStatus: "connected" }, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    res.redirect(302, "https://ismo-data.app/?google=connected");
+  } catch (error) {
+    logger.error("Google OAuth callback failed", { detail: error instanceof Error ? error.message : "unknown" });
+    fail("callback_failed");
+  }
+});
+
+export const getGoogleIntegration = onCall({ region, enforceAppCheck: true }, async request => {
+  const siteId = requireString(request.data?.siteId, "siteId", 80);
+  const site = await requireSiteAccess(request.auth, siteId);
+  const token = await db.doc(`sites/${siteId}/privateIntegrations/google`).get();
+  return { connected: token.exists, connectedAt: token.data()?.connectedAt?.toDate?.().toISOString(), ga4PropertyId: site.integrations?.ga4PropertyId ?? "", searchConsoleProperty: site.integrations?.searchConsoleProperty ?? "", redirectUri: googleRedirectUri() };
+});
+
+export const listGoogleResources = onCall({ region, enforceAppCheck: true, secrets: [googleOAuthClientId, googleOAuthClientSecret, googleTokenEncryptionKey], timeoutSeconds: 45 }, async request => {
+  const siteId = requireString(request.data?.siteId, "siteId", 80);
+  await requireSiteAccess(request.auth, siteId);
+  const accessToken = await googleToken(siteId);
+  const [analytics, search] = await Promise.all([
+    googleJson("https://analyticsadmin.googleapis.com/v1beta/accountSummaries?pageSize=200", accessToken),
+    googleJson("https://www.googleapis.com/webmasters/v3/sites", accessToken),
+  ]);
+  const properties = ((analytics.accountSummaries as Array<Record<string, unknown>> | undefined) ?? []).flatMap(account => ((account.propertySummaries as Array<Record<string, unknown>> | undefined) ?? []).map(property => ({ id: String(property.property ?? "").replace("properties/", ""), name: String(property.displayName ?? property.property ?? "") }))).filter(item => item.id);
+  const searchConsoleSites = ((search.siteEntry as Array<Record<string, unknown>> | undefined) ?? []).map(site => ({ url: String(site.siteUrl ?? ""), permission: String(site.permissionLevel ?? "") })).filter(item => item.url);
+  return { properties, searchConsoleSites };
+});
+
+export const saveGoogleResources = onCall({ region, enforceAppCheck: true }, async request => {
+  const siteId = requireString(request.data?.siteId, "siteId", 80);
+  const site = await requireSiteAccess(request.auth, siteId);
+  if (site.ownerUid !== request.auth!.uid) throw new HttpsError("permission-denied", "MOGCIA権限が必要です");
+  const ga4PropertyId = cleanOptional(request.data?.ga4PropertyId, 80) ?? "";
+  const searchConsoleProperty = cleanOptional(request.data?.searchConsoleProperty, 500) ?? "";
+  await db.doc(`sites/${siteId}`).set({ integrations: { googleConnectionStatus: "connected", ga4PropertyId, searchConsoleProperty }, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  return { ok: true };
+});
+
+export const getGooglePerformance = onCall({ region, enforceAppCheck: true, secrets: [googleOAuthClientId, googleOAuthClientSecret, googleTokenEncryptionKey], timeoutSeconds: 45 }, async request => {
+  const siteId = requireString(request.data?.siteId, "siteId", 80);
+  const site = await requireSiteAccess(request.auth, siteId);
+  const range = request.data?.range as Partial<DateRange> | undefined;
+  parseRange(range);
+  const from = requireString(range?.from, "from", 10);
+  const to = requireString(range?.to, "to", 10);
+  const accessToken = await googleToken(siteId);
+  const ga4PropertyId = cleanOptional(site.integrations?.ga4PropertyId, 80);
+  const searchConsoleProperty = cleanOptional(site.integrations?.searchConsoleProperty, 500);
+  const ga4 = ga4PropertyId ? await googleJson(`https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(ga4PropertyId)}:runReport`, accessToken, { method: "POST", body: JSON.stringify({ dateRanges: [{ startDate: from, endDate: to }], dimensions: [{ name: "sessionDefaultChannelGroup" }], metrics: [{ name: "activeUsers" }, { name: "sessions" }, { name: "screenPageViews" }], limit: 20 }) }) : null;
+  const search = searchConsoleProperty ? await googleJson(`https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(searchConsoleProperty)}/searchAnalytics/query`, accessToken, { method: "POST", body: JSON.stringify({ startDate: from, endDate: to, dimensions: ["query"], rowLimit: 10 }) }) : null;
+  const gaRows = ((ga4?.rows as Array<Record<string, unknown>> | undefined) ?? []).map(row => ({
+    channel: String((row.dimensionValues as Array<{ value?: string }> | undefined)?.[0]?.value ?? "Unknown"),
+    activeUsers: Number((row.metricValues as Array<{ value?: string }> | undefined)?.[0]?.value ?? 0),
+    sessions: Number((row.metricValues as Array<{ value?: string }> | undefined)?.[1]?.value ?? 0),
+    views: Number((row.metricValues as Array<{ value?: string }> | undefined)?.[2]?.value ?? 0),
+  }));
+  const searchRows = ((search?.rows as Array<Record<string, unknown>> | undefined) ?? []).map(row => ({ query: String((row.keys as string[] | undefined)?.[0] ?? ""), clicks: Number(row.clicks ?? 0), impressions: Number(row.impressions ?? 0), ctr: Number((Number(row.ctr ?? 0) * 100).toFixed(2)), position: Number(Number(row.position ?? 0).toFixed(1)) }));
+  return { ga4: ga4PropertyId ? { propertyId: ga4PropertyId, rows: gaRows } : null, searchConsole: searchConsoleProperty ? { property: searchConsoleProperty, rows: searchRows } : null };
+});
+
+export const disconnectGoogleIntegration = onCall({ region, enforceAppCheck: true }, async request => {
+  const siteId = requireString(request.data?.siteId, "siteId", 80);
+  const site = await requireSiteAccess(request.auth, siteId);
+  if (site.ownerUid !== request.auth!.uid) throw new HttpsError("permission-denied", "MOGCIA権限が必要です");
+  await db.doc(`sites/${siteId}/privateIntegrations/google`).delete();
+  await db.doc(`sites/${siteId}`).set({ integrations: { googleConnectionStatus: "not_connected", ga4PropertyId: "", searchConsoleProperty: "" }, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  return { ok: true };
 });
 
 async function publicSiteUrl(value: string) {

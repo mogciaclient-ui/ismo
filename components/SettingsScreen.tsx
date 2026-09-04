@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Check, ClipboardText, Code, FloppyDisk, Plus, Pulse, Trash, WarningCircle } from "@phosphor-icons/react";
-import { analyticsMode, analyticsProvider, type ConversionRule, type SiteMember, type SiteSettings } from "@/lib/analytics";
+import { analyticsMode, analyticsProvider, type ConversionRule, type GoogleIntegrationStatus, type GooglePerformance, type GoogleResources, type SiteMember, type SiteSettings } from "@/lib/analytics";
 import { useSiteWorkspace } from "@/lib/site-workspace";
+import { getLast30DaysRange } from "@/lib/date-range";
 
 const blankRule = (): ConversionRule => ({ id: crypto.randomUUID(), name: "新しいゴール", eventName: "custom_conversion", matchType: "event", matchValue: "", enabled: true });
 
@@ -14,6 +15,11 @@ export function SettingsScreen() {
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "testing" | "success" | "error" | "empty">("idle");
   const [members, setMembers] = useState<SiteMember[]>([]);
   const [memberDraft, setMemberDraft] = useState({ email: "", role: "client" as SiteMember["role"] });
+  const [googleStatus, setGoogleStatus] = useState<GoogleIntegrationStatus | null>(null);
+  const [googleResources, setGoogleResources] = useState<GoogleResources | null>(null);
+  const [integrationBusy, setIntegrationBusy] = useState(false);
+  const [integrationError, setIntegrationError] = useState("");
+  const [googlePerformance, setGooglePerformance] = useState<GooglePerformance | null>(null);
 
   useEffect(() => {
     setSettings(null);
@@ -25,7 +31,20 @@ export function SettingsScreen() {
   const test = async () => { if (!settings) return; setStatus("testing"); try { const result = await analyticsProvider.testConnection(settings.id); setStatus(result.ok ? "success" : "empty"); } catch { setStatus("error"); } };
   const updateRule = (id: string, patch: Partial<ConversionRule>) => update({ conversionRules: settings?.conversionRules.map(rule => rule.id === id ? { ...rule, ...patch } : rule) ?? [] });
   useEffect(() => { if (tab === "access" && canEdit) analyticsProvider.getSiteMembers(selectedSiteId).then(setMembers).catch(() => setStatus("error")); }, [tab, canEdit, selectedSiteId]);
+  useEffect(() => {
+    if (tab !== "integrations") return;
+    setIntegrationError("");
+    setGoogleResources(null);
+    analyticsProvider.getGoogleIntegration(selectedSiteId).then(result => {
+      setGoogleStatus(result);
+      if (result.connected) analyticsProvider.listGoogleResources(selectedSiteId).then(setGoogleResources).catch(() => setIntegrationError("Googleの接続先を取得できませんでした。APIの有効化と権限を確認してください。"));
+    }).catch(() => setIntegrationError("Google連携状態を取得できませんでした。Functionsの設定を確認してください。"));
+  }, [tab, selectedSiteId]);
   const addMember = async () => { if (!memberDraft.email.trim()) return; setStatus("saving"); try { setMembers(await analyticsProvider.setSiteMember(selectedSiteId, memberDraft.email, memberDraft.role)); setMemberDraft({ email: "", role: "client" }); setStatus("saved"); } catch { setStatus("error"); } };
+  const connectGoogle = async () => { setIntegrationBusy(true); setIntegrationError(""); try { const result = await analyticsProvider.startGoogleOAuth(selectedSiteId); window.location.assign(result.authorizationUrl); } catch { setIntegrationError("Google OAuthを開始できませんでした。Firebase Secretの設定を確認してください。"); setIntegrationBusy(false); } };
+  const saveGoogle = async () => { if (!settings) return; setIntegrationBusy(true); setIntegrationError(""); try { const ga4PropertyId = settings.integrations?.ga4PropertyId ?? ""; const searchConsoleProperty = settings.integrations?.searchConsoleProperty ?? ""; await analyticsProvider.saveGoogleResources(selectedSiteId, ga4PropertyId, searchConsoleProperty); setGoogleStatus(current => current ? { ...current, ga4PropertyId, searchConsoleProperty } : current); setStatus("saved"); } catch { setIntegrationError("接続先を保存できませんでした。"); } finally { setIntegrationBusy(false); } };
+  const disconnectGoogle = async () => { setIntegrationBusy(true); setIntegrationError(""); try { await analyticsProvider.disconnectGoogleIntegration(selectedSiteId); setGoogleStatus({ connected: false, ga4PropertyId: "", searchConsoleProperty: "", redirectUri: googleStatus?.redirectUri ?? "" }); setGoogleResources(null); update({ integrations: { googleConnectionStatus: "not_connected", ga4PropertyId: "", searchConsoleProperty: "" } }); } catch { setIntegrationError("Google連携を解除できませんでした。"); } finally { setIntegrationBusy(false); } };
+  const testGoogleData = async () => { setIntegrationBusy(true); setIntegrationError(""); setGooglePerformance(null); try { setGooglePerformance(await analyticsProvider.getGooglePerformance(selectedSiteId, getLast30DaysRange())); } catch { setIntegrationError("データを取得できませんでした。選択したプロパティへの権限とAPIの有効化を確認してください。"); } finally { setIntegrationBusy(false); } };
 
   if (!settings) return <div className="settings-loading"><i/><span>{status === "error" ? "設定を読み込めませんでした" : "サイト設定を読み込み中"}</span></div>;
 
@@ -44,8 +63,10 @@ export function SettingsScreen() {
 
     {tab === "install" && <div className="install-grid"><section className="settings-panel"><div className="install-step"><span>01</span><div><h2>計測タグを設置</h2><p>対象サイトの全ページで読み込まれるよう、head内へ追加します。</p></div></div><pre><code>{snippet}</code><button onClick={() => navigator.clipboard.writeText(snippet)} aria-label="タグをコピー"><ClipboardText/></button></pre><div className="install-step"><span>02</span><div><h2>重要なボタンを識別</h2><p><code>data-mogcia-id</code> を付けると、DOM変更後もヒートマップ位置を照合できます。</p></div></div><pre><code>{`<a data-mogcia-id="hero-line"\n   data-mogcia-event="line_add">\n  LINEで相談する\n</a>`}</code></pre></section><aside className="connection-card"><Pulse/><h3>タグ導入チェック</h3><p>テストイベントを待機して、siteIdと受信経路を確認します。</p><dl><div><dt>Site ID</dt><dd>{settings.id}</dd></div><div><dt>Collector</dt><dd>{analyticsMode === "firebase" ? "Cloud Functions" : "Mock adapter"}</dd></div></dl><button onClick={test} disabled={status === "testing"}>{status === "testing" ? "受信を確認中…" : "テストイベントを確認"}</button>{status === "success" && <div className="test-success"><Check/>正常に受信しました</div>}{status === "empty" && <div className="test-error">まだイベントを受信していません</div>}{status === "error" && <div className="test-error">確認処理に失敗しました</div>}</aside></div>}
 
-    {tab === "integrations" && <section className="settings-panel integrations-panel"><div className="settings-title"><div><h2>Googleデータ連携</h2><p>サイト内行動に、検索・流入前のデータを重ねるための設定です。</p></div><span className="integration-state">OAuth準備中</span></div><div className="integration-cards"><article><div><b>Google Analytics 4</b><p>ユーザー・セッション・チャネルをGA4と照合します。</p></div><label><span>プロパティID</span><input disabled={!canEdit} value={settings.integrations?.ga4PropertyId ?? ""} placeholder="123456789" onChange={event => update({ integrations: { ...settings.integrations, ga4PropertyId: event.target.value, googleConnectionStatus: "configured" } })}/></label></article><article><div><b>Google Search Console</b><p>検索語句・表示回数・クリック・掲載順位を分析します。</p></div><label><span>プロパティURL</span><input disabled={!canEdit} value={settings.integrations?.searchConsoleProperty ?? ""} placeholder="sc-domain:example.com" onChange={event => update({ integrations: { ...settings.integrations, searchConsoleProperty: event.target.value, googleConnectionStatus: "configured" } })}/></label></article></div><div className="integration-note"><WarningCircle/><p>実際の接続にはGoogle CloudのOAuthクライアントID・Secret・リダイレクトURLが必要です。SecretをNEXT_PUBLIC環境変数へ入れないでください。</p></div></section>}
+    {tab === "integrations" && <section className="settings-panel integrations-panel"><div className="settings-title"><div><h2>Googleデータ連携</h2><p>サイト内行動に、検索・流入前のデータを重ねます。</p></div><span className={`integration-state ${googleStatus?.connected ? "connected" : ""}`}>{googleStatus?.connected ? "接続済み" : "未接続"}</span></div>{!googleStatus?.connected ? <div className="google-connect"><div><b>Google Analytics 4 + Search Console</b><p>Googleアカウントで許可し、閲覧可能なGA4プロパティとSearch Consoleサイトを選択します。</p></div>{canEdit && <button onClick={connectGoogle} disabled={integrationBusy}>{integrationBusy ? "接続準備中…" : "Googleに接続"}</button>}</div> : <><div className="integration-cards"><article><div><b>Google Analytics 4</b><p>ユーザー・セッション・チャネルをGA4と照合します。</p></div><label><span>プロパティ</span><select disabled={!canEdit || !googleResources} value={settings.integrations?.ga4PropertyId ?? googleStatus.ga4PropertyId} onChange={event => update({ integrations: { ...settings.integrations, ga4PropertyId: event.target.value, googleConnectionStatus: "connected" } })}><option value="">選択してください</option>{googleResources?.properties.map(property => <option key={property.id} value={property.id}>{property.name} ({property.id})</option>)}</select></label></article><article><div><b>Google Search Console</b><p>検索語句・表示回数・クリック・掲載順位を分析します。</p></div><label><span>プロパティ</span><select disabled={!canEdit || !googleResources} value={settings.integrations?.searchConsoleProperty ?? googleStatus.searchConsoleProperty} onChange={event => update({ integrations: { ...settings.integrations, searchConsoleProperty: event.target.value, googleConnectionStatus: "connected" } })}><option value="">選択してください</option>{googleResources?.searchConsoleSites.map(site => <option key={site.url} value={site.url}>{site.url}</option>)}</select></label></article></div>{canEdit && <div className="google-actions"><button className="secondary" onClick={disconnectGoogle} disabled={integrationBusy}>接続を解除</button><button onClick={saveGoogle} disabled={integrationBusy || !googleResources}>{integrationBusy ? "処理中…" : "接続先を保存"}</button></div>}</>}{integrationError && <div className="test-error">{integrationError}</div>}<div className="integration-note"><WarningCircle/><p>読み取り専用権限だけを使用します。Refresh TokenはFunctionsで暗号化し、ブラウザや通常のFirestore読み取りには公開しません。OAuthリダイレクトURL：<code>{googleStatus?.redirectUri ?? "Functionsデプロイ後に表示"}</code></p></div></section>}
 
-    {tab !== "install" && tab !== "access" && <div className="settings-actions"><span>{status === "saved" && <><Check/>保存しました</>}{status === "error" && "保存できませんでした"}</span><button onClick={save} disabled={status === "saving" || !canEdit}><FloppyDisk/>{status === "saving" ? "保存中…" : canEdit ? "変更を保存" : "閲覧のみ"}</button></div>}
+    {tab === "integrations" && googleStatus?.connected && <div className="google-test-panel"><button onClick={testGoogleData} disabled={integrationBusy || (!googleStatus.ga4PropertyId && !googleStatus.searchConsoleProperty)}>{integrationBusy ? "取得中…" : "データ取得テスト"}</button>{googlePerformance && <div className="google-test-result"><Check/><div><b>Googleデータを取得できました</b><p>GA4：{googlePerformance.ga4?.rows.length ?? 0}チャネル ／ Search Console：{googlePerformance.searchConsole?.rows.length ?? 0}検索語句</p></div></div>}</div>}
+
+    {tab !== "install" && tab !== "access" && tab !== "integrations" && <div className="settings-actions"><span>{status === "saved" && <><Check/>保存しました</>}{status === "error" && "保存できませんでした"}</span><button onClick={save} disabled={status === "saving" || !canEdit}><FloppyDisk/>{status === "saving" ? "保存中…" : canEdit ? "変更を保存" : "閲覧のみ"}</button></div>}
   </>;
 }

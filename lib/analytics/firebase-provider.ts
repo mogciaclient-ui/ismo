@@ -2,7 +2,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { getFirebaseServices } from "@/lib/firebase/client";
 import type { AnalyticsProvider } from "./provider";
-import type { CompetitorAnalysisResult, HeatmapSnapshot, OverviewSnapshot, SiteAnalysisResult, SiteMember, SiteSettings } from "./types";
+import type { CompetitorAnalysisResult, GoogleIntegrationStatus, GooglePerformance, GoogleResources, HeatmapSnapshot, OverviewSnapshot, SiteAnalysisResult, SiteMember, SiteSettings } from "./types";
 
 export const firebaseAnalyticsProvider: AnalyticsProvider = {
   async getOverview(siteId, range) {
@@ -54,5 +54,29 @@ export const firebaseAnalyticsProvider: AnalyticsProvider = {
     const { functions } = getFirebaseServices();
     const result = await httpsCallable<{ siteId: string; email: string; role: SiteMember["role"] }, { members: SiteMember[] }>(functions, "setSiteMember")({ siteId, email, role });
     return result.data.members;
+  },
+  async getGoogleIntegration(siteId) {
+    const { functions } = getFirebaseServices();
+    return (await httpsCallable<{ siteId: string }, GoogleIntegrationStatus>(functions, "getGoogleIntegration")({ siteId })).data;
+  },
+  async startGoogleOAuth(siteId) {
+    const { functions } = getFirebaseServices();
+    return (await httpsCallable<{ siteId: string }, { authorizationUrl: string; redirectUri: string }>(functions, "startGoogleOAuth")({ siteId })).data;
+  },
+  async listGoogleResources(siteId) {
+    const { functions } = getFirebaseServices();
+    return (await httpsCallable<{ siteId: string }, GoogleResources>(functions, "listGoogleResources")({ siteId })).data;
+  },
+  async saveGoogleResources(siteId, ga4PropertyId, searchConsoleProperty) {
+    const { functions } = getFirebaseServices();
+    await httpsCallable(functions, "saveGoogleResources")({ siteId, ga4PropertyId, searchConsoleProperty });
+  },
+  async getGooglePerformance(siteId, range) {
+    const { functions } = getFirebaseServices();
+    return (await httpsCallable<{ siteId: string; range: typeof range }, GooglePerformance>(functions, "getGooglePerformance")({ siteId, range })).data;
+  },
+  async disconnectGoogleIntegration(siteId) {
+    const { functions } = getFirebaseServices();
+    await httpsCallable(functions, "disconnectGoogleIntegration")({ siteId });
   },
 };

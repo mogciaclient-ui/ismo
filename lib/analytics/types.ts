@@ -105,6 +105,24 @@ export type CompetitorAnalysisResult = {
 
 export type SiteMember = { uid: string; email: string; role: "mogcia" | "agency" | "client" };
 
+export type GoogleIntegrationStatus = {
+  connected: boolean;
+  connectedAt?: string;
+  ga4PropertyId: string;
+  searchConsoleProperty: string;
+  redirectUri: string;
+};
+
+export type GoogleResources = {
+  properties: Array<{ id: string; name: string }>;
+  searchConsoleSites: Array<{ url: string; permission: string }>;
+};
+
+export type GooglePerformance = {
+  ga4: { propertyId: string; rows: Array<{ channel: string; activeUsers: number; sessions: number; views: number }> } | null;
+  searchConsole: { property: string; rows: Array<{ query: string; clicks: number; impressions: number; ctr: number; position: number }> } | null;
+};
+
 export type ConversionRule = {
   id: string;
   name: string;

@@ -47,4 +47,10 @@ export const mockAnalyticsProvider: AnalyticsProvider = {
   },
   async getSiteMembers() { return [{ uid: "demo-owner", email: "owner@example.com", role: "mogcia" as const }]; },
   async setSiteMember(_siteId, email, role) { return [{ uid: "demo-owner", email: "owner@example.com", role: "mogcia" as const }, { uid: crypto.randomUUID(), email, role }]; },
+  async getGoogleIntegration() { return { connected: false, ga4PropertyId: "", searchConsoleProperty: "", redirectUri: "https://example.invalid/googleOAuthCallback" }; },
+  async startGoogleOAuth() { throw new Error("Firebase接続後に利用できます"); },
+  async listGoogleResources() { return { properties: [], searchConsoleSites: [] }; },
+  async saveGoogleResources() {},
+  async getGooglePerformance() { return { ga4: null, searchConsole: null }; },
+  async disconnectGoogleIntegration() {},
 };
