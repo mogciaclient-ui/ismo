@@ -62,8 +62,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
       <div className="auth-story-copy">
         <div className="auth-insight"><span>INSIGHT</span> <strong>SPARK</strong></div>
         <h2>SEE WHAT<br/>OTHERS MISS.</h2>
+        <div className="auth-process">Analyze. Discover. Improve.</div>
       </div>
-      <div className="auth-process">Analyze. Discover. Improve.</div>
     </section>
     <form className="auth-card" onSubmit={submit}>
       <div className="logo auth-logo"><Image src="/ismo-symbol.png" width={38} height={38} alt="" priority/><div><b>ismo.</b><small>WEB ANALYTICS</small></div></div>
