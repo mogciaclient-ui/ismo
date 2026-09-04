@@ -1,5 +1,5 @@
 export type DeviceType = "desktop" | "mobile" | "tablet";
-export type EventName = "page_view" | "click" | "scroll" | "cta_click" | "conversion";
+export type EventName = "page_view" | "engagement" | "click" | "scroll" | "cta_click" | "conversion";
 
 export type DateRange = { from: string; to: string };
 export type AnalyticsFilters = {
@@ -24,6 +24,9 @@ export type AnalyticsEvent = {
   deviceType: DeviceType;
   viewportWidth: number;
   viewportHeight: number;
+  documentHeight?: number;
+  engagementSeconds?: number;
+  coordinateSpace?: "page";
   elementId?: string;
   elementTag?: string;
   elementText?: string;
@@ -43,6 +46,18 @@ export type OverviewSnapshot = {
   averageEngagementSeconds: number;
   bounceRate: number;
   attributionCoverage: number;
+  trend: Array<{ day: string; sessions: number; conversions: number }>;
+  sources: AnalyticsTableRow[];
+  pages: AnalyticsTableRow[];
+  conversionGoals: AnalyticsTableRow[];
+  journeys: Array<{ source: string; pages: Array<{ name: string; sessions: number }> }>;
+};
+
+export type AnalyticsTableRow = {
+  name: string;
+  sessions: number;
+  outcomes: number;
+  rate: number;
 };
 
 export type HeatmapPoint = {

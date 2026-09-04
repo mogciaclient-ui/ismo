@@ -16,7 +16,7 @@ type DateRange = { from: string; to: string };
 type IncomingEvent = {
   schemaVersion: 1;
   eventId: string;
-  eventName: "page_view" | "click" | "scroll" | "cta_click" | "conversion";
+  eventName: "page_view" | "engagement" | "click" | "scroll" | "cta_click" | "conversion";
   siteId: string;
   sessionId: string;
   occurredAt: string;
@@ -29,6 +29,9 @@ type IncomingEvent = {
   deviceType: DeviceType;
   viewportWidth: number;
   viewportHeight: number;
+  documentHeight?: number;
+  engagementSeconds?: number;
+  coordinateSpace?: "page";
   elementId?: string;
   elementTag?: string;
   elementText?: string;
@@ -56,7 +59,7 @@ function cleanOptional(value: unknown, max = 200): string | undefined {
 function cleanEvent(raw: unknown, expectedSiteId: string): IncomingEvent {
   if (!raw || typeof raw !== "object") throw new Error("Invalid event");
   const value = raw as Record<string, unknown>;
-  const eventNames = ["page_view", "click", "scroll", "cta_click", "conversion"];
+  const eventNames = ["page_view", "engagement", "click", "scroll", "cta_click", "conversion"];
   const deviceTypes = ["desktop", "mobile", "tablet"];
   const eventName = requireString(value.eventName, "eventName", 32);
   const deviceType = requireString(value.deviceType, "deviceType", 16);
@@ -85,6 +88,9 @@ function cleanEvent(raw: unknown, expectedSiteId: string): IncomingEvent {
     deviceType: deviceType as DeviceType,
     viewportWidth: number(value.viewportWidth, 1, 10000) ?? 0,
     viewportHeight: number(value.viewportHeight, 1, 10000) ?? 0,
+    documentHeight: number(value.documentHeight, 1, 1000000),
+    engagementSeconds: number(value.engagementSeconds, 0, 86400),
+    coordinateSpace: value.coordinateSpace === "page" ? "page" : undefined,
     elementId: cleanOptional(value.elementId, 120),
     elementTag: cleanOptional(value.elementTag, 40),
     elementText: cleanOptional(value.elementText, 80),
@@ -186,7 +192,10 @@ async function loadEvents(siteId: string, input: unknown, limit = 50_000) {
   const range = parseRange(input);
   const snapshot = await db.collection(`sites/${siteId}/events`)
     .where("occurredAt", ">=", range.from).where("occurredAt", "<=", range.to).limit(limit).get();
-  return snapshot.docs.map(doc => doc.data() as IncomingEvent);
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return { ...data, occurredAt: data.occurredAt instanceof Timestamp ? data.occurredAt.toDate().toISOString() : String(data.occurredAt) } as IncomingEvent;
+  });
 }
 
 export const getOverview = onCall({ region, enforceAppCheck: true }, async request => {
@@ -197,14 +206,58 @@ export const getOverview = onCall({ region, enforceAppCheck: true }, async reque
   const sessions = new Set(events.map(event => event.sessionId));
   const conversions = events.filter(event => event.eventName === "conversion" || Boolean(event.conversionId)).length;
   const attributed = new Set(events.filter(event => event.source && event.source !== "direct").map(event => event.sessionId));
+  const engagementBySession = new Map<string, number>();
+  for (const event of events) engagementBySession.set(event.sessionId, Math.max(engagementBySession.get(event.sessionId) ?? 0, Number(event.engagementSeconds ?? 0)));
+  const table = (keyOf: (event: IncomingEvent) => string) => {
+    const groups = new Map<string, { sessions: Set<string>; outcomes: number }>();
+    for (const event of events) {
+      const key = keyOf(event);
+      if (!key) continue;
+      const group = groups.get(key) ?? { sessions: new Set<string>(), outcomes: 0 };
+      group.sessions.add(event.sessionId);
+      if (event.eventName === "conversion" || Boolean(event.conversionId)) group.outcomes += 1;
+      groups.set(key, group);
+    }
+    return Array.from(groups, ([name, group]) => ({ name, sessions: group.sessions.size, outcomes: group.outcomes, rate: group.sessions.size ? Number((group.outcomes / group.sessions.size * 100).toFixed(2)) : 0 }))
+      .sort((a, b) => b.sessions - a.sessions).slice(0, 10);
+  };
+  const trendMap = new Map<string, { sessions: Set<string>; conversions: number }>();
+  for (const event of events) {
+    const day = event.occurredAt.slice(0, 10);
+    const row = trendMap.get(day) ?? { sessions: new Set<string>(), conversions: 0 };
+    row.sessions.add(event.sessionId);
+    if (event.eventName === "conversion" || event.conversionId) row.conversions += 1;
+    trendMap.set(day, row);
+  }
+  const conversionEvents = events.filter(event => event.eventName === "conversion" || Boolean(event.conversionId));
+  const conversionGroups = new Map<string, { sessions: Set<string>; outcomes: number }>();
+  for (const event of conversionEvents) {
+    const key = event.conversionId ?? "conversion";
+    const group = conversionGroups.get(key) ?? { sessions: new Set<string>(), outcomes: 0 };
+    group.sessions.add(event.sessionId); group.outcomes += 1; conversionGroups.set(key, group);
+  }
+  const journeySources = Array.from(new Set(pageViews.map(event => event.source || "direct"))).slice(0, 8);
+  const journeys = journeySources.map(source => {
+    const sourceViews = pageViews.filter(event => (event.source || "direct") === source);
+    const sessionsByPage = new Map<string, Set<string>>();
+    for (const event of sourceViews) {
+      const set = sessionsByPage.get(event.pagePath) ?? new Set<string>(); set.add(event.sessionId); sessionsByPage.set(event.pagePath, set);
+    }
+    return { source, pages: Array.from(sessionsByPage, ([name, set]) => ({ name, sessions: set.size })).sort((a, b) => b.sessions - a.sessions).slice(0, 5) };
+  }).sort((a, b) => (b.pages[0]?.sessions ?? 0) - (a.pages[0]?.sessions ?? 0));
   return {
     measuredUsers: sessions.size,
     sessions: sessions.size,
     conversions,
     conversionRate: sessions.size ? Number(((conversions / sessions.size) * 100).toFixed(2)) : 0,
-    averageEngagementSeconds: 0,
+    averageEngagementSeconds: sessions.size ? Math.round(Array.from(engagementBySession.values()).reduce((sum, value) => sum + value, 0) / sessions.size) : 0,
     bounceRate: sessions.size ? Number(((Array.from(sessions).filter(id => pageViews.filter(event => event.sessionId === id).length <= 1).length / sessions.size) * 100).toFixed(1)) : 0,
     attributionCoverage: sessions.size ? Number(((attributed.size / sessions.size) * 100).toFixed(1)) : 0,
+    trend: Array.from(trendMap, ([day, row]) => ({ day, sessions: row.sessions.size, conversions: row.conversions })).sort((a, b) => a.day.localeCompare(b.day)),
+    sources: table(event => event.source || "direct"),
+    pages: table(event => event.pagePath),
+    conversionGoals: Array.from(conversionGroups, ([name, group]) => ({ name, sessions: group.sessions.size, outcomes: group.outcomes, rate: group.sessions.size ? Number((group.outcomes / group.sessions.size * 100).toFixed(2)) : 0 })).sort((a, b) => b.outcomes - a.outcomes),
+    journeys,
   };
 });
 
@@ -217,17 +270,17 @@ export const getHeatmap = onCall({ region, enforceAppCheck: true }, async reques
   if (filters.pagePath) events = events.filter(event => event.pagePath === filters.pagePath);
   if (filters.source) events = events.filter(event => event.source === filters.source);
   const sessions = new Set(events.map(event => event.sessionId));
-  const clicks = events.filter(event => typeof event.normalizedX === "number" && typeof event.documentY === "number");
+  const clicks = events.filter(event => event.coordinateSpace === "page" && typeof event.normalizedX === "number" && typeof event.documentY === "number");
   const scrolls = events.filter(event => typeof event.scrollDepth === "number");
   return {
     pagePath: filters.pagePath ?? "/",
     device: filters.device ?? "mobile",
     sampleSize: sessions.size,
-    pageHeight: Math.max(1280, ...clicks.map(event => Number(event.documentY ?? 0) + Number(event.viewportHeight ?? 0))),
+    pageHeight: Math.max(1, ...clicks.map(event => Number(event.documentHeight ?? 0)), ...clicks.map(event => Number(event.documentY ?? 0) + Number(event.viewportHeight ?? 0))),
     points: clicks.slice(0, 2000).map(event => ({
       id: event.eventId,
       x: Number(event.normalizedX) * 100,
-      y: Number(event.documentY),
+      y: Math.min(100, Number(event.documentY) / Math.max(1, Number(event.documentHeight ?? (Number(event.documentY) + Number(event.viewportHeight)))) * 100),
       weight: 0.6,
       elementId: event.elementId,
     })),
@@ -252,6 +305,14 @@ export const getAiInsight = onCall({ region, enforceAppCheck: true, secrets: [op
   const siteId = requireString(request.data?.siteId, "siteId", 80);
   const question = requireString(request.data?.question, "question", 500);
   await requireSiteAccess(request.auth, siteId);
+  const quotaId = `${request.auth!.uid}_${new Date().toISOString().slice(0, 10)}`;
+  await db.runTransaction(async transaction => {
+    const ref = db.doc(`sites/${siteId}/aiUsage/${quotaId}`);
+    const snapshot = await transaction.get(ref);
+    const count = Number(snapshot.data()?.count ?? 0);
+    if (count >= 20) throw new HttpsError("resource-exhausted", "AI分析は1日20回までです");
+    transaction.set(ref, { count: count + 1, uid: request.auth!.uid, day: new Date().toISOString().slice(0, 10), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  });
   const events = await loadEvents(siteId, request.data?.range, 20_000);
   const sessions = new Set(events.map(event => event.sessionId));
   const summary = {

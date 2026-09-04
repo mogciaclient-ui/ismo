@@ -25,7 +25,7 @@ let settings: SiteSettings = {
 
 export const mockAnalyticsProvider: AnalyticsProvider = {
   async getOverview() {
-    return { measuredUsers: 8421, sessions: 10284, conversions: 126, conversionRate: 1.23, averageEngagementSeconds: 138, bounceRate: 42.8, attributionCoverage: 86.4 };
+    return { measuredUsers: 8421, sessions: 10284, conversions: 126, conversionRate: 1.23, averageEngagementSeconds: 138, bounceRate: 42.8, attributionCoverage: 86.4, trend: [], sources: [], pages: [], conversionGoals: [], journeys: [] };
   },
   async getHeatmap(_siteId, _range, filters) {
     return { pagePath: filters.pagePath ?? "/", device: (filters.device ?? "mobile") as DeviceType, sampleSize: 2184, pageHeight: 1280, points, scrollReach: [{ depth: 25, percentage: 91 }, { depth: 50, percentage: 68 }, { depth: 75, percentage: 42 }, { depth: 90, percentage: 21 }] };

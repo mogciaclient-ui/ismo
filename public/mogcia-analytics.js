@@ -20,6 +20,8 @@
   var flushTimer;
   var sessionId;
   var consentBanner;
+  var pageStartedAt = Date.now();
+  var lastPath = location.pathname;
 
   function uuid() {
     return crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -71,6 +73,7 @@
       deviceType: deviceType(),
       viewportWidth: innerWidth,
       viewportHeight: innerHeight,
+      documentHeight: Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0),
       consent: true,
     };
   }
@@ -99,9 +102,11 @@
     track(eventName, {
       elementId: element.dataset.mogciaId || element.id || undefined,
       elementTag: element.tagName.toLowerCase(),
-      normalizedX: rect.width ? Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) : undefined,
+      normalizedX: innerWidth ? Math.max(0, Math.min(1, event.clientX / innerWidth)) : undefined,
       normalizedY: rect.height ? Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) : undefined,
       documentY: Math.round(event.clientY + scrollY),
+      coordinateSpace: "page",
+      elementText: (element.getAttribute("aria-label") || element.textContent || "").trim().slice(0, 80) || undefined,
       conversionId: element.dataset.mogciaEvent || undefined,
     });
   }
@@ -119,6 +124,23 @@
     if (value) track("page_view");
     else queue.length = 0;
   }
+  function trackEngagement() {
+    if (!hasConsent()) return;
+    var seconds = Math.min(86400, Math.round((Date.now() - pageStartedAt) / 1000));
+    if (seconds > 0) track("engagement", { engagementSeconds: seconds });
+  }
+  function routeChanged() {
+    if (location.pathname === lastPath) return;
+    trackEngagement();
+    lastPath = location.pathname;
+    pageStartedAt = Date.now();
+    scrollSent = {};
+    track("page_view");
+  }
+  ["pushState", "replaceState"].forEach(function (method) {
+    var original = history[method];
+    history[method] = function () { var result = original.apply(this, arguments); setTimeout(routeChanged, 0); return result; };
+  });
   function showConsent(force) {
     if (config.consentMode !== "required" || consentBanner || (!force && consentState() !== null)) return;
     var host = document.createElement("div");
@@ -175,8 +197,9 @@
 
   document.addEventListener("click", onClick, { capture: true, passive: true });
   addEventListener("scroll", onScroll, { passive: true });
-  addEventListener("pagehide", flush);
-  window.MogciaAnalytics = { track: track, flush: flush, consent: consent, showConsent: function () { showConsent(true); }, version: "1.1.0" };
+  addEventListener("popstate", routeChanged);
+  addEventListener("pagehide", function () { trackEngagement(); flush(); });
+  window.MogciaAnalytics = { track: track, flush: flush, consent: consent, showConsent: function () { showConsent(true); }, version: "1.2.0" };
   track("page_view");
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { showConsent(false); }, { once: true });
   else showConsent(false);
