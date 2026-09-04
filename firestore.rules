@@ -13,11 +13,15 @@ service cloud.firestore {
     }
 
     match /sites/{siteId} {
+      // A signed-in user must be able to confirm that an initial site document
+      // does not exist before creating it. Existing documents remain private.
+      allow get: if signedIn() &&
+        (!exists(/databases/$(database)/documents/sites/$(siteId)) || canAccessSite(siteId));
+      allow list: if canAccessSite(siteId);
       allow create: if signedIn()
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.memberUids is list
         && request.auth.uid in request.resource.data.memberUids;
-      allow read: if canAccessSite(siteId);
       allow update: if canAccessSite(siteId)
         && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.memberUids == resource.data.memberUids;
