@@ -14,6 +14,7 @@ const config = {
 };
 
 export const isFirebaseConfigured = Boolean(config.apiKey && config.projectId && config.appId);
+let activeSiteId = "";
 
 export function getFirebaseServices() {
   if (!isFirebaseConfigured) throw new Error("Firebase environment variables are not configured");
@@ -41,12 +42,17 @@ export function getFirebaseServices() {
 }
 
 export function getCurrentSiteId() {
+  if (activeSiteId) return activeSiteId;
   const configured = process.env.NEXT_PUBLIC_MOGCIA_SITE_ID?.trim();
   if (configured) return configured;
   if (!isFirebaseConfigured) return "mogcia-demo";
   const { auth } = getFirebaseServices();
   if (!auth.currentUser) throw new Error("ログインが必要です");
   return `site-${auth.currentUser.uid}`;
+}
+
+export function setCurrentSiteId(siteId: string) {
+  activeSiteId = siteId;
 }
 
 declare global {

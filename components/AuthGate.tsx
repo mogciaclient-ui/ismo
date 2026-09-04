@@ -6,6 +6,7 @@ import { Eye, EyeSlash } from "@phosphor-icons/react";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { getCurrentSiteId, getFirebaseServices, isFirebaseConfigured } from "@/lib/firebase/client";
+import { SiteWorkspaceProvider } from "@/lib/site-workspace";
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -33,10 +34,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
       const snapshot = await getDoc(ref);
       if (!snapshot.exists()) {
         await setDoc(ref, {
-          id: siteId, name: "My Website", domain: location.hostname,
+          id: siteId, name: "My Website", domain: location.hostname, clientName: "MOGCIA", siteType: "website",
           timezone: "Asia/Tokyo", consentMode: "required", privacyUrl: "", retentionDays: 395,
           excludedIps: [], conversionRules: [], ownerUid: user.uid,
-          memberUids: [user.uid], createdAt: new Date().toISOString(),
+          memberUids: [user.uid], memberRoles: { [user.uid]: "mogcia" }, createdAt: new Date().toISOString(),
         });
       }
       setSiteReady(true);
@@ -55,7 +56,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   };
 
   if (!ready) return <main className="auth-shell"><div className="auth-card"><p>接続を確認しています…</p></div></main>;
-  if (!isFirebaseConfigured) return <>{children}</>;
+  if (!isFirebaseConfigured) return <SiteWorkspaceProvider>{children}</SiteWorkspaceProvider>;
   if (!user) return <main className="auth-shell"><div className="auth-layout">
     <section className="auth-story" aria-label="ismo.について">
       <div className="auth-story-mark"><Image src="/ismo-symbol.png" width={54} height={54} alt="" priority/><span>ismo<span className="brand-dot">.</span></span></div>
@@ -78,5 +79,5 @@ export function AuthGate({ children }: { children: ReactNode }) {
   </div></main>;
 
   if (!siteReady) return <main className="auth-shell"><div className="auth-card"><p>{error || "サイトを準備しています…"}</p></div></main>;
-  return <><button className="global-signout" onClick={() => signOut(getFirebaseServices().auth)}>ログアウト</button>{children}</>;
+  return <SiteWorkspaceProvider><button className="global-signout" onClick={() => signOut(getFirebaseServices().auth)}>ログアウト</button>{children}</SiteWorkspaceProvider>;
 }

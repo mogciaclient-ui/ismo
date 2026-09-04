@@ -5,9 +5,11 @@ import Image from "next/image";
 import { HeatmapOverlay } from "@/components/HeatmapOverlay";
 import { SettingsScreen } from "@/components/SettingsScreen";
 import { AuthGate } from "@/components/AuthGate";
+import { AgencyOverviewScreen, ClientViewScreen, CompetitorsScreen, ImproveScreen, PerformanceDetailScreen, SiteAnalysisScreen, StrategyScreen } from "@/components/ProductScreens";
 import { analyticsProvider, type AnalyticsTableRow, type OverviewSnapshot } from "@/lib/analytics";
-import { getCurrentSiteId } from "@/lib/firebase/client";
 import { getLast30DaysRange } from "@/lib/date-range";
+import { getCurrentSiteId } from "@/lib/firebase/client";
+import { type SiteType, useSiteWorkspace } from "@/lib/site-workspace";
 import {
   ArrowDown,
   ArrowRight,
@@ -28,6 +30,7 @@ import {
   MagnifyingGlass,
   MapTrifold,
   PaperPlaneTilt,
+  Plus,
   Sparkle,
   Target,
   TrendUp,
@@ -45,17 +48,18 @@ import {
   YAxis,
 } from "recharts";
 
-type Screen = "Overview" | "導線分析" | "ヒートマップ" | "ページ分析" | "流入分析" | "コンバージョン" | "AI分析" | "サイト設定";
+type Screen = "ホーム" | "サイト戦略" | "サイト分析" | "競合分析" | "パフォーマンス" | "改善管理" | "月次レポート" | "Agency" | "導線分析" | "ヒートマップ" | "ページ分析" | "流入分析" | "コンバージョン" | "AI分析" | "サイト設定";
 
-const nav: { label: Screen; icon: React.ElementType }[] = [
-  { label: "Overview", icon: CirclesFour },
-  { label: "導線分析", icon: FlowArrow },
-  { label: "ヒートマップ", icon: MapTrifold },
-  { label: "ページ分析", icon: ListBullets },
-  { label: "流入分析", icon: FunnelSimple },
-  { label: "コンバージョン", icon: Target },
-  { label: "AI分析", icon: Sparkle },
+const nav: { label: Screen; group: string; icon: React.ElementType }[] = [
+  { label: "ホーム", group: "OVERVIEW", icon: CirclesFour },
+  { label: "サイト戦略", group: "PLAN", icon: Target },
+  { label: "サイト分析", group: "UNDERSTAND", icon: MagnifyingGlass },
+  { label: "競合分析", group: "UNDERSTAND", icon: UsersThree },
+  { label: "パフォーマンス", group: "MEASURE", icon: ChartLineUp },
+  { label: "改善管理", group: "ACT", icon: Sparkle },
+  { label: "月次レポート", group: "SHARE", icon: UserCircle },
 ];
+const navGroups = ["OVERVIEW", "PLAN", "UNDERSTAND", "MEASURE", "ACT", "SHARE"];
 
 const kpis = [
   ["計測ユーザー", "8,421", "+12.4%"], ["セッション", "10,284", "+8.7%"],
@@ -64,9 +68,10 @@ const kpis = [
 ];
 
 function Overview({ onNavigate }: { onNavigate: (s: Screen) => void }) {
+  const { selectedSiteId } = useSiteWorkspace();
   const [snapshot,setSnapshot]=useState<OverviewSnapshot|null>(null);
   const [failed,setFailed]=useState(false);
-  useEffect(()=>{analyticsProvider.getOverview(getCurrentSiteId(),getLast30DaysRange()).then(setSnapshot).catch(()=>setFailed(true))},[]);
+  useEffect(()=>{setSnapshot(null);setFailed(false);analyticsProvider.getOverview(selectedSiteId,getLast30DaysRange()).then(setSnapshot).catch(()=>setFailed(true))},[selectedSiteId]);
   const liveKpis=snapshot?[["計測ユーザー",snapshot.measuredUsers.toLocaleString(),"実測"],["セッション",snapshot.sessions.toLocaleString(),"実測"],["コンバージョン",snapshot.conversions.toLocaleString(),"実測"],["CVR",`${snapshot.conversionRate}%`,"実測"],["平均滞在時間",`${Math.floor(snapshot.averageEngagementSeconds/60)}:${String(snapshot.averageEngagementSeconds%60).padStart(2,"0")}`,"実測"],["直帰率",`${snapshot.bounceRate}%`,"実測"]]:kpis.map(([label])=>[label,failed?"取得失敗":"—",failed?"再読込してください":"集計中"]);
   const liveChart=snapshot?.trend.map(row=>({day:`${Number(row.day.slice(8))}日`,users:row.sessions,cv:row.conversions}))??[];
   const liveSources=snapshot?.sources.slice(0,5)??[];
@@ -95,19 +100,24 @@ function PanelHead({title,note}:{title:string;note:string}) { return <div classN
 function EmptyState(){return <div className="empty-state">まだ計測データがありません</div>}
 
 function FlowScreen() {
+  const { selectedSiteId } = useSiteWorkspace();
   const [snapshot,setSnapshot]=useState<OverviewSnapshot|null>(null); const [source,setSource]=useState("");
-  useEffect(()=>{analyticsProvider.getOverview(getCurrentSiteId(),getLast30DaysRange()).then(data=>{setSnapshot(data);setSource(data.journeys[0]?.source??"")}).catch(()=>setSnapshot(null))},[]);
+  useEffect(()=>{setSnapshot(null);analyticsProvider.getOverview(selectedSiteId,getLast30DaysRange()).then(data=>{setSnapshot(data);setSource(data.journeys[0]?.source??"")}).catch(()=>setSnapshot(null))},[selectedSiteId]);
   const journey=snapshot?.journeys.find(item=>item.source===source); const pages=journey?.pages??[];
   return <><PageTitle eyebrow="USER JOURNEY" title="導線分析" sub="流入元別に、各ページへ到達したセッション数を比較します。"/><MeasurementNote coverage={snapshot?.attributionCoverage}/>{snapshot?.journeys.length?<FilterPills items={snapshot.journeys.map(item=>item.source)} active={source} setActive={setSource}/>:null}<section className="panel flow-panel"><PanelHead title={`${source||"流入元"} のページ到達`} note="直近30日"/><div className="flow-canvas">{pages.length?pages.map((page,i)=><div className="flow-item" key={page.name}><div className={`flow-node n${i}`}><small>{i===0?"最多到達":"PAGE"}</small><b>{page.name}</b><strong>{page.sessions.toLocaleString()}</strong><span>sessions</span></div>{i<pages.length-1&&<div className="connector"><span>{page.sessions?Math.round(pages[i+1].sessions/page.sessions*100):0}%</span><ArrowRight size={24}/><small>{Math.max(0,page.sessions-pages[i+1].sessions).toLocaleString()} 差</small></div>}</div>):<EmptyState/>}</div><div className="flow-note"><Lightbulb weight="fill"/><p><b>ページ到達数の比較です。</b><br/>同一セッションの厳密な閲覧順序ではないため、遷移順の断定には使わず、関心ページの発見に利用してください。</p></div></section></>;
 }
 
 function HeatmapScreen() {
+  const { selectedSite } = useSiteWorkspace();
   const [mode, setMode] = useState("クリック");
   const [device, setDevice] = useState("Smartphone");
   const [heatmap, setHeatmap] = useState<import("@/lib/analytics").HeatmapSnapshot | null>(null);
   const handleData = useMemo(() => setHeatmap, []);
   const middleReach = heatmap?.scrollReach.find(row => row.depth === 50)?.percentage ?? 0;
-  const previewHeight = Math.max(520, Math.min(heatmap?.pageHeight ?? 520, 12000));
+  const fallbackHeight = device === "PC" ? 6000 : 9000;
+  const measuredHeight = heatmap?.pageHeight && heatmap.pageHeight > 520 ? heatmap.pageHeight : fallbackHeight;
+  const previewHeight = Math.min(measuredHeight, 12000);
+  const previewUrl = `https://${selectedSite.domain || "www.mogcia.net"}`;
 
   return <>
     <PageTitle eyebrow="BEHAVIOR MAP" title="ヒートマップ" sub="計測に同意したセッションの操作傾向を確認します。" />
@@ -115,13 +125,14 @@ function HeatmapScreen() {
     <div className="filter-row"><FilterPills items={["クリック", "スクロール", "注目エリア"]} active={mode} setActive={setMode} /><FilterPills items={["PC", "Smartphone", "Tablet"]} active={device} setActive={setDevice} /></div>
     <div className="heat-layout">
       <section className="panel heat-preview">
-        <div className="browser-bar"><i /><i /><i /><span>www.mogcia.net /</span><em>SCROLL PREVIEW</em></div>
+        <div className="browser-bar"><i /><i /><i /><span>{selectedSite.domain || "URL未設定"}</span><em>SCROLL PREVIEW</em></div>
         <div className={`site-preview ${device.toLowerCase()}`}>
           <div className="site-preview-canvas" style={{ height: previewHeight }}>
-            <iframe src="https://www.mogcia.net/" title="www.mogcia.net ライブプレビュー" loading="lazy" tabIndex={-1} />
+            <iframe src={previewUrl} title={`${selectedSite.name} ライブプレビュー`} loading="lazy" tabIndex={-1} />
             <HeatmapOverlay device={device} mode={mode} onData={handleData} />
           </div>
         </div>
+        <div className="heat-scroll-hint" aria-hidden="true"><span>この画面内をスクロール</span><ArrowDown /></div>
       </section>
       <aside className="panel heat-aside">
         <PanelHead title="実測値" note={`${device} / ${mode}`} />
@@ -151,4 +162,101 @@ function MeasurementNote({coverage}:{coverage?:number}){return <div className="m
 function PageTitle({eyebrow,title,sub}:{eyebrow:string;title:string;sub:string}){return <div className="page-head"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p className="sub">{sub}</p></div><div className="range">直近30日 <CaretDown size={14}/></div></div>}
 function FilterPills({items,active,setActive}:{items:string[];active:string;setActive:(x:string)=>void}){return <div className="pills">{items.map(i=><button key={i} className={active===i?"active":""} onClick={()=>setActive(i)}>{i}</button>)}</div>}
 
-export default function Home(){const [screen,setScreen]=useState<Screen>("Overview"); const title=useMemo(()=>screen,[screen]); return <AuthGate><main><aside className="sidebar"><div className="logo"><Image src="/ismo-symbol.png" width={34} height={34} alt="" priority/><div><b>ismo<span className="brand-dot">.</span></b><small>WEB ANALYTICS</small></div></div><div className="site-select"><i/><div><small>ANALYZING</small><b>www.mogcia.net</b></div><CaretDown/></div><nav>{nav.map(({label,icon:Icon})=><button key={label} className={screen===label?"active":""} onClick={()=>setScreen(label)}><Icon size={19} weight={screen===label?"fill":"regular"}/>{label}{label==="AI分析"&&<em>AI</em>}</button>)}</nav><div className="sidebar-bottom"><button className={screen==="サイト設定"?"active":""} onClick={()=>setScreen("サイト設定")}><Gear/>サイト設定</button><div className="profile"><div>MK</div><span><b>MOGCIA Inc.</b><small>Admin</small></span><CaretDown/></div></div></aside><section className="workspace"><header className="topbar"><div className="crumb"><span>ismo<span className="brand-dot">.</span> ANALYTICS</span><ArrowRight/>{title}</div><div className="top-actions"><div className="status"><i/>データ連携中</div></div></header><div className="content">{screen==="Overview"&&<Overview onNavigate={setScreen}/>} {screen==="導線分析"&&<FlowScreen/>}{screen==="ヒートマップ"&&<HeatmapScreen/>}{screen==="AI分析"&&<AiScreen/>}{screen==="サイト設定"&&<SettingsScreen/>}{["ページ分析","流入分析","コンバージョン"].includes(screen)&&<SimpleScreen screen={screen}/>}</div></section></main></AuthGate>}
+function PerformanceScreen({ onNavigate }: { onNavigate: (screen: Screen) => void }) {
+  const [tab, setTab] = useState("Overview");
+  const tabs = ["Overview", "Acquisition", "Journey", "Pages", "Conversion", "Segments", "Funnel", "Heatmap", "Data Quality"];
+  return <>
+    <div className="performance-tabs">{tabs.map(item => <button className={tab === item ? "active" : ""} key={item} onClick={() => setTab(item)}>{item}</button>)}</div>
+    {tab === "Overview" && <Overview onNavigate={onNavigate} />}
+    {tab === "Acquisition" && <SimpleScreen screen="流入分析" />}
+    {tab === "Journey" && <FlowScreen />}
+    {tab === "Pages" && <SimpleScreen screen="ページ分析" />}
+    {tab === "Conversion" && <SimpleScreen screen="コンバージョン" />}
+    {tab === "Segments" && <PerformanceDetailScreen view="Segments" />}
+    {tab === "Funnel" && <PerformanceDetailScreen view="Funnel" />}
+    {tab === "Heatmap" && <HeatmapScreen />}
+    {tab === "Data Quality" && <PerformanceDetailScreen view="Data Quality" />}
+  </>;
+}
+
+const siteTypeLabels: Record<SiteType, string> = { website: "HP", landing_page: "LP", recruit: "採用サイト" };
+
+function SiteSwitcher({ onAgency }: { onAgency: () => void }) {
+  const { sites, selectedSite, loading, selectSite, createSite } = useSiteWorkspace();
+  const [open, setOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [draft, setDraft] = useState({ clientName: "MOGCIA", name: "", domain: "", siteType: "landing_page" as SiteType });
+  const clients = useMemo(() => Object.entries(sites.reduce<Record<string, typeof sites>>((all, site) => { (all[site.clientName] ??= []).push(site); return all; }, {})), [sites]);
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      await createSite(draft);
+      setDraft({ clientName: "MOGCIA", name: "", domain: "", siteType: "landing_page" });
+      setAdding(false);
+      setOpen(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "サイトを追加できませんでした");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return <div className="site-switcher">
+    <button className="site-select" type="button" aria-expanded={open} onClick={() => setOpen(value => !value)}>
+      <i />
+      <div><small>{loading ? "LOADING" : "ANALYZING"}</small><b>{selectedSite.name}</b><span>{selectedSite.domain}</span></div>
+      <CaretDown />
+    </button>
+    {open && <div className="site-menu">
+      <div className="site-menu-head"><span>PROJECTS</span><small>{sites.length} SITES</small></div>
+      <button className="agency-link" type="button" onClick={() => { onAgency(); setOpen(false); }}><UsersThree /><span><b>Agency Overview</b><small>全クライアントを表示</small></span><ArrowRight /></button>
+      <div className="site-options">{clients.map(([client, items]) => <div className="site-client-group" key={client}><strong>{client}</strong>{items.map(site => <button type="button" className={site.id === selectedSite.id ? "active" : ""} key={site.id} onClick={() => { selectSite(site.id); setOpen(false); }}><i /><span><b>{site.name}</b><small>{site.domain}</small></span><em>{siteTypeLabels[site.siteType]}</em></button>)}</div>)}</div>
+      {!adding && <button className="site-add" type="button" onClick={() => setAdding(true)}><Plus />サイトを追加</button>}
+      {adding && <form className="site-add-form" onSubmit={submit}>
+        <label><span>クライアント名</span><input value={draft.clientName} placeholder="MOGCIA" onChange={event => setDraft(current => ({ ...current, clientName: event.target.value }))} /></label>
+        <label><span>サイト名</span><input autoFocus value={draft.name} placeholder="AI開発 LP" onChange={event => setDraft(current => ({ ...current, name: event.target.value }))} /></label>
+        <label><span>URL</span><input value={draft.domain} placeholder="www.example.com/lp" onChange={event => setDraft(current => ({ ...current, domain: event.target.value }))} /></label>
+        <label><span>種別</span><select value={draft.siteType} onChange={event => setDraft(current => ({ ...current, siteType: event.target.value as SiteType }))}><option value="website">HP</option><option value="landing_page">LP</option><option value="recruit">採用サイト</option></select></label>
+        {error && <p>{error}</p>}
+        <div><button type="button" onClick={() => { setAdding(false); setError(""); }}>キャンセル</button><button type="submit" disabled={saving}>{saving ? "追加中…" : "追加する"}</button></div>
+      </form>}
+    </div>}
+  </div>;
+}
+
+function Dashboard() {
+  const [screen, setScreen] = useState<Screen>("ホーム");
+  const { selectedSiteId } = useSiteWorkspace();
+  const title = useMemo(() => screen, [screen]);
+
+  return <main className={screen === "月次レポート" ? "client-view-mode" : ""}>
+    <aside className="sidebar">
+      <div className="logo"><Image src="/ismo-symbol.png" width={34} height={34} alt="" priority /><div><b>ismo<span className="brand-dot">.</span></b><small>WEB ANALYTICS</small></div></div>
+      <SiteSwitcher onAgency={() => setScreen("Agency")} />
+      <nav>{navGroups.map(group => <div className="nav-group" key={group}><span>{group}</span>{nav.filter(item => item.group === group).map(({ label, icon: Icon }) => <button key={label} className={screen === label ? "active" : ""} onClick={() => setScreen(label)}><Icon size={19} weight={screen === label ? "fill" : "regular"} />{label}</button>)}</div>)}</nav>
+      <div className="sidebar-bottom"><button className={screen === "サイト設定" ? "active" : ""} onClick={() => setScreen("サイト設定")}><Gear />サイト設定</button><div className="profile"><div>MK</div><span><b>MOGCIA Inc.</b><small>Admin</small></span><CaretDown /></div></div>
+    </aside>
+    <section className="workspace">
+      <header className="topbar"><div className="crumb"><span>ismo<span className="brand-dot">.</span> ANALYTICS</span><ArrowRight />{title}</div><div className="top-actions">{screen === "月次レポート" ? <button className="back-admin" onClick={() => setScreen("ホーム")}><ArrowRight />管理画面へ戻る</button> : <div className="status"><i />データ連携中</div>}</div></header>
+      <div className="content" key={`${selectedSiteId}-${screen}`}>
+        {screen === "ホーム" && <Overview onNavigate={setScreen} />}
+        {screen === "サイト戦略" && <StrategyScreen />}
+        {screen === "サイト分析" && <SiteAnalysisScreen />}
+        {screen === "競合分析" && <CompetitorsScreen />}
+        {screen === "パフォーマンス" && <PerformanceScreen onNavigate={setScreen} />}
+        {screen === "改善管理" && <ImproveScreen />}
+        {screen === "月次レポート" && <ClientViewScreen />}
+        {screen === "Agency" && <AgencyOverviewScreen />}
+        {screen === "AI分析" && <AiScreen />}
+        {screen === "サイト設定" && <SettingsScreen />}
+      </div>
+    </section>
+  </main>;
+}
+
+export default function Home() { return <AuthGate><Dashboard /></AuthGate>; }

@@ -1,9 +1,11 @@
 import { initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
 import OpenAI from "openai";
+import { lookup } from "node:dns/promises";
 
 initializeApp();
 const db = getFirestore();
@@ -274,6 +276,14 @@ export const getOverview = onCall({ region, enforceAppCheck: true }, async reque
     pages: table(event => event.pagePath),
     conversionGoals: Array.from(conversionGroups, ([name, group]) => ({ name, sessions: group.sessions.size, outcomes: group.outcomes, rate: group.sessions.size ? Number((group.outcomes / group.sessions.size * 100).toFixed(2)) : 0 })).sort((a, b) => b.outcomes - a.outcomes),
     journeys,
+    deviceSegments: table(event => event.deviceType),
+    dataQuality: {
+      lastEventAt: events.map(event => event.occurredAt).sort().at(-1),
+      eventCount: events.length,
+      taggedPages: new Set(pageViews.map(event => event.pagePath)).size,
+      hasConversions: conversions > 0,
+      attributionCoverage: sessions.size ? Number(((attributed.size / sessions.size) * 100).toFixed(1)) : 0,
+    },
   };
 });
 
@@ -315,6 +325,130 @@ export const testMeasurement = onCall({ region, enforceAppCheck: true }, async r
   return latest.empty
     ? { ok: false, message: "まだイベントを受信していません" }
     : { ok: true, receivedAt: data?.receivedAt?.toDate?.().toISOString(), message: "イベントを受信しました" };
+});
+
+async function siteMembers(site: Record<string, unknown>) {
+  const uids = Array.isArray(site.memberUids) ? site.memberUids.filter((uid): uid is string => typeof uid === "string").slice(0, 100) : [];
+  const result = uids.length ? await getAuth().getUsers(uids.map(uid => ({ uid }))) : { users: [] };
+  const roles = site.memberRoles && typeof site.memberRoles === "object" ? site.memberRoles as Record<string, string> : {};
+  return result.users.map(user => ({ uid: user.uid, email: user.email ?? "", role: user.uid === site.ownerUid ? "mogcia" : roles[user.uid] === "agency" ? "agency" : "client" }));
+}
+
+export const getSiteMembers = onCall({ region, enforceAppCheck: true }, async request => {
+  const siteId = requireString(request.data?.siteId, "siteId", 80);
+  const site = await requireSiteAccess(request.auth, siteId);
+  if (site.ownerUid !== request.auth!.uid) throw new HttpsError("permission-denied", "MOGCIA権限が必要です");
+  return { members: await siteMembers(site) };
+});
+
+export const setSiteMember = onCall({ region, enforceAppCheck: true }, async request => {
+  const siteId = requireString(request.data?.siteId, "siteId", 80);
+  const email = requireString(request.data?.email, "email", 320).toLowerCase();
+  const role = requireString(request.data?.role, "role", 20);
+  if (!["agency", "client"].includes(role)) throw new HttpsError("invalid-argument", "権限が不正です");
+  const site = await requireSiteAccess(request.auth, siteId);
+  if (site.ownerUid !== request.auth!.uid) throw new HttpsError("permission-denied", "MOGCIA権限が必要です");
+  let user;
+  try { user = await getAuth().getUserByEmail(email); }
+  catch { throw new HttpsError("not-found", "Firebase Authenticationに登録済みのユーザーが見つかりません"); }
+  const memberUids = Array.from(new Set([...(Array.isArray(site.memberUids) ? site.memberUids : []), user.uid]));
+  const memberRoles = { ...(site.memberRoles ?? {}), [user.uid]: role };
+  await db.doc(`sites/${siteId}`).set({ memberUids, memberRoles, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  return { members: await siteMembers({ ...site, memberUids, memberRoles }) };
+});
+
+async function publicSiteUrl(value: string) {
+  const source = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  const url = new URL(source);
+  const host = url.hostname.toLowerCase();
+  if (!["http:", "https:"].includes(url.protocol) || host === "localhost" || host.endsWith(".local") || /^(127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host)) {
+    throw new HttpsError("invalid-argument", "公開サイトのURLを指定してください");
+  }
+  const addresses = await lookup(host, { all: true });
+  if (!addresses.length || addresses.some(({ address }) => /^(127\.|10\.|192\.168\.|169\.254\.|0\.|::1$|fc|fd|fe80)/i.test(address) || /^172\.(1[6-9]|2\d|3[01])\./.test(address))) {
+    throw new HttpsError("invalid-argument", "公開サイトのURLを指定してください");
+  }
+  return url;
+}
+
+async function pageDocument(value: string) {
+  let url = await publicSiteUrl(value);
+  let response: Response | undefined;
+  for (let redirects = 0; redirects <= 5; redirects += 1) {
+    response = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(12_000), headers: { "user-agent": "ismo-site-analysis/1.0" } });
+    if (![301, 302, 303, 307, 308].includes(response.status)) break;
+    const location = response.headers.get("location");
+    if (!location || redirects === 5) throw new HttpsError("failed-precondition", "サイトのリダイレクトを解決できませんでした");
+    url = await publicSiteUrl(new URL(location, url).toString());
+  }
+  if (!response) throw new HttpsError("failed-precondition", "サイトを取得できませんでした");
+  if (!response.ok || !(response.headers.get("content-type") ?? "").includes("text/html")) throw new HttpsError("failed-precondition", `${url.hostname}を取得できませんでした`);
+  const html = (await response.text()).slice(0, 250_000);
+  const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.replace(/\s+/g, " ").trim() ?? url.pathname;
+  const links = Array.from(html.matchAll(/<a[^>]+href=["']([^"'#]+)["']/gi), match => {
+    try { return new URL(match[1], url).toString(); } catch { return ""; }
+  }).filter(link => link && new URL(link).origin === url.origin);
+  const text = html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;|&#160;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim().slice(0, 45_000);
+  return { url: url.toString(), title, text, links: Array.from(new Set(links)) };
+}
+
+async function pageText(value: string) { return (await pageDocument(value)).text; }
+
+async function crawlSite(value: string, limit = 12) {
+  const first = await pageDocument(value);
+  const queue = [...first.links];
+  const pages = [first];
+  const visited = new Set([first.url]);
+  while (queue.length && pages.length < limit) {
+    const next = queue.shift()!;
+    if (visited.has(next)) continue;
+    visited.add(next);
+    try {
+      const page = await pageDocument(next);
+      pages.push(page);
+      for (const link of page.links) if (!visited.has(link) && queue.length < 80) queue.push(link);
+    } catch (error) { logger.debug(`Skipped crawl page ${next}: ${error instanceof Error ? error.message : "unknown"}`); }
+  }
+  return pages.map(page => ({ url: page.url, title: page.title, text: page.text.slice(0, 9000) }));
+}
+
+function structuredJson(text: string) {
+  try { return JSON.parse(text.replace(/^```json\s*|\s*```$/g, "")); }
+  catch { throw new HttpsError("internal", "AI分析結果を整形できませんでした"); }
+}
+
+export const analyzeSite = onCall({ region, enforceAppCheck: true, secrets: [openAiKey], timeoutSeconds: 90, maxInstances: 5 }, async request => {
+  const siteId = requireString(request.data?.siteId, "siteId", 80);
+  const site = await requireSiteAccess(request.auth, siteId);
+  if (site.ownerUid !== request.auth!.uid) throw new HttpsError("permission-denied", "MOGCIA権限が必要です");
+  const pages = await crawlSite(requireString(site.domain, "domain", 500));
+  const client = new OpenAI({ apiKey: openAiKey.value() });
+  const response = await client.responses.create({ model: openAiModel, max_output_tokens: 1200, input: [
+    { role: "system", content: "Webサイトの公開文言だけを根拠に分析します。JSONだけを返し、書かれていない事実を作らないでください。" },
+    { role: "user", content: `Strategy: ${JSON.stringify(site.strategy ?? {})}\nCrawled pages: ${JSON.stringify(pages)}\nJSON schema: {"summary":"string","mainMessage":"string","target":"string","strengths":["string"],"trustElements":["string"],"ctas":["string"],"sections":["FV|Problem|Solution|Service|Feature|Price|Case Study|FAQ|CTA"],"recommendations":["string"],"pages":[{"url":"string","title":"string","summary":"string"}]}` },
+  ] });
+  const result = { analyzedAt: new Date().toISOString(), ...structuredJson(response.output_text) };
+  const history = Array.isArray(site.analysisHistory) ? site.analysisHistory.slice(0, 9) : [];
+  await db.doc(`sites/${siteId}`).set({ siteAnalysis: result, analysisHistory: [result, ...history], updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  return result;
+});
+
+export const analyzeCompetitors = onCall({ region, enforceAppCheck: true, secrets: [openAiKey], timeoutSeconds: 120, maxInstances: 3 }, async request => {
+  const siteId = requireString(request.data?.siteId, "siteId", 80);
+  const site = await requireSiteAccess(request.auth, siteId);
+  if (site.ownerUid !== request.auth!.uid) throw new HttpsError("permission-denied", "MOGCIA権限が必要です");
+  const competitors = Array.isArray(site.competitors) ? site.competitors.slice(0, 5) : [];
+  if (!competitors.length) throw new HttpsError("failed-precondition", "競合サイトを1件以上登録してください");
+  const pages = await Promise.all([{ name: "自社", url: site.domain }, ...competitors.map((item: Record<string, unknown>) => ({ name: String(item.name ?? "競合"), url: String(item.url ?? "") }))].map(async item => ({ name: item.name, text: await pageText(item.url) })));
+  const client = new OpenAI({ apiKey: openAiKey.value() });
+  const response = await client.responses.create({ model: openAiModel, max_output_tokens: 1300, input: [
+    { role: "system", content: "自社と競合の公開Webサイトを比較します。事実と推論を混同せず、JSONだけを返してください。競合が触れていないことだけで市場機会と断定しないでください。" },
+    { role: "user", content: `Strategy: ${JSON.stringify(site.strategy ?? {})}\nPages: ${JSON.stringify(pages)}\nJSON schema: {"common":["string"],"weakness":["string"],"strength":["string"],"opportunity":["string"],"recommendation":"string","positioning":[{"name":"string","x":0-100,"y":0-100}]}` },
+  ] });
+  const result = { analyzedAt: new Date().toISOString(), ...structuredJson(response.output_text) };
+  const history = Array.isArray(site.competitorHistory) ? site.competitorHistory.slice(0, 9) : [];
+  await db.doc(`sites/${siteId}`).set({ competitorAnalysis: result, competitorHistory: [result, ...history], updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  return result;
 });
 
 export const getAiInsight = onCall({ region, enforceAppCheck: true, secrets: [openAiKey], timeoutSeconds: 60, maxInstances: 10 }, async request => {

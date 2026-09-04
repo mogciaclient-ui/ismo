@@ -27,7 +27,7 @@ let settings: SiteSettings = {
 
 export const mockAnalyticsProvider: AnalyticsProvider = {
   async getOverview() {
-    return { measuredUsers: 8421, sessions: 10284, conversions: 126, conversionRate: 1.23, averageEngagementSeconds: 138, bounceRate: 42.8, attributionCoverage: 86.4, trend: [], sources: [], pages: [], conversionGoals: [], journeys: [] };
+    return { measuredUsers: 8421, sessions: 10284, conversions: 126, conversionRate: 1.23, averageEngagementSeconds: 138, bounceRate: 42.8, attributionCoverage: 86.4, trend: [], sources: [], pages: [], conversionGoals: [], journeys: [], deviceSegments: [{ name: "mobile", sessions: 6800, outcomes: 78, rate: 1.15 }, { name: "desktop", sessions: 3484, outcomes: 48, rate: 1.38 }], dataQuality: { lastEventAt: new Date().toISOString(), eventCount: 18240, taggedPages: 12, hasConversions: true, attributionCoverage: 86.4 } };
   },
   async getHeatmap(_siteId, _range, filters) {
     return { pagePath: filters.pagePath ?? "/", device: (filters.device ?? "mobile") as DeviceType, sampleSize: 2184, pageHeight: 1280, points, scrollReach: [{ depth: 25, percentage: 91 }, { depth: 50, percentage: 68 }, { depth: 75, percentage: 42 }, { depth: 90, percentage: 21 }] };
@@ -39,4 +39,12 @@ export const mockAnalyticsProvider: AnalyticsProvider = {
     await new Promise(resolve => setTimeout(resolve, 450));
     return { answer: `「${question}」について、現在はデモモードです。Firebaseを設定すると実データをもとに分析します。` };
   },
+  async analyzeSite() {
+    return { analyzedAt: new Date().toISOString(), summary: "サイトの主要な訴求と導線を整理しました。", mainMessage: "戦略から実行まで一気通貫で支援", target: "事業改善を進めたい企業", strengths: ["一気通貫の支援"], trustElements: ["企業情報", "導入事例"], ctas: ["お問い合わせ"], sections: ["FV", "Service", "Case Study", "CTA"], recommendations: ["ターゲット別の導線を明確にする"] };
+  },
+  async analyzeCompetitors() {
+    return { analyzedAt: new Date().toISOString(), common: ["伴走支援"], weakness: ["定量実績の提示"], strength: ["幅広い実行範囲"], opportunity: ["複数施策を一つのデータで改善"], recommendation: "支援範囲の広さを、具体的な成果と結びつけて訴求しましょう。" };
+  },
+  async getSiteMembers() { return [{ uid: "demo-owner", email: "owner@example.com", role: "mogcia" as const }]; },
+  async setSiteMember(_siteId, email, role) { return [{ uid: "demo-owner", email: "owner@example.com", role: "mogcia" as const }, { uid: crypto.randomUUID(), email, role }]; },
 };

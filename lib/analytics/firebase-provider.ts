@@ -2,7 +2,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { getFirebaseServices } from "@/lib/firebase/client";
 import type { AnalyticsProvider } from "./provider";
-import type { HeatmapSnapshot, OverviewSnapshot, SiteSettings } from "./types";
+import type { CompetitorAnalysisResult, HeatmapSnapshot, OverviewSnapshot, SiteAnalysisResult, SiteMember, SiteSettings } from "./types";
 
 export const firebaseAnalyticsProvider: AnalyticsProvider = {
   async getOverview(siteId, range) {
@@ -34,5 +34,25 @@ export const firebaseAnalyticsProvider: AnalyticsProvider = {
     const { functions } = getFirebaseServices();
     const result = await httpsCallable<{ siteId: string; range: typeof range; question: string }, { answer: string; usage?: unknown }>(functions, "getAiInsight")({ siteId, range, question });
     return result.data;
+  },
+  async analyzeSite(siteId) {
+    const { functions } = getFirebaseServices();
+    const result = await httpsCallable<{ siteId: string }, SiteAnalysisResult>(functions, "analyzeSite")({ siteId });
+    return result.data;
+  },
+  async analyzeCompetitors(siteId) {
+    const { functions } = getFirebaseServices();
+    const result = await httpsCallable<{ siteId: string }, CompetitorAnalysisResult>(functions, "analyzeCompetitors")({ siteId });
+    return result.data;
+  },
+  async getSiteMembers(siteId) {
+    const { functions } = getFirebaseServices();
+    const result = await httpsCallable<{ siteId: string }, { members: SiteMember[] }>(functions, "getSiteMembers")({ siteId });
+    return result.data.members;
+  },
+  async setSiteMember(siteId, email, role) {
+    const { functions } = getFirebaseServices();
+    const result = await httpsCallable<{ siteId: string; email: string; role: SiteMember["role"] }, { members: SiteMember[] }>(functions, "setSiteMember")({ siteId, email, role });
+    return result.data.members;
   },
 };

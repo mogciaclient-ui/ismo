@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { analyticsProvider, type DeviceType, type HeatmapSnapshot } from "@/lib/analytics";
-import { getCurrentSiteId } from "@/lib/firebase/client";
 import { getLast30DaysRange } from "@/lib/date-range";
+import { useSiteWorkspace } from "@/lib/site-workspace";
 
 const range = getLast30DaysRange();
 
 export function HeatmapOverlay({ device, mode, onData }: { device: string; mode: string; onData?: (data: HeatmapSnapshot | null) => void }) {
+  const { selectedSiteId } = useSiteWorkspace();
   const [data, setData] = useState<HeatmapSnapshot | null>(null);
   const [error, setError] = useState(false);
   const mappedDevice: DeviceType = device === "PC" ? "desktop" : device === "Tablet" ? "tablet" : "mobile";
@@ -15,10 +16,10 @@ export function HeatmapOverlay({ device, mode, onData }: { device: string; mode:
   useEffect(() => {
     setData(null);
     setError(false);
-    analyticsProvider.getHeatmap(getCurrentSiteId(), range, { device: mappedDevice, pagePath: "/" })
+    analyticsProvider.getHeatmap(selectedSiteId, range, { device: mappedDevice, pagePath: "/" })
       .then(value => { setData(value); onData?.(value); })
       .catch(() => { setError(true); onData?.(null); });
-  }, [mappedDevice, onData]);
+  }, [mappedDevice, onData, selectedSiteId]);
 
   if (error) return <div className="heat-state">データを読み込めませんでした</div>;
   if (!data) return <div className="heat-state"><i />ヒートマップを集計中</div>;
