@@ -2,7 +2,7 @@
 
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import Image from "next/image";
-import { Eye, EyeSlash, Sparkle } from "@phosphor-icons/react";
+import { Eye, EyeSlash } from "@phosphor-icons/react";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { getCurrentSiteId, getFirebaseServices, isFirebaseConfigured } from "@/lib/firebase/client";
@@ -59,8 +59,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (!user) return <main className="auth-shell"><div className="auth-layout">
     <section className="auth-story" aria-label="ismo.について">
       <div className="auth-story-mark"><Image src="/ismo-symbol.png" width={54} height={54} alt="" priority/><span>ismo.</span></div>
-      <div className="auth-story-copy"><div className="auth-insight"><Sparkle weight="fill"/> INSIGHT SPARK</div><h2>気づきを、<br/>もっとやさしく。</h2><p>データを並べるだけではなく、<br/>次に改善することが自然に見つかる分析体験を。</p></div>
-      <div className="auth-process"><span>Analyze</span><i/><span>Discover</span><i/><span>Insight</span><i/><span>Improve</span></div>
+      <div className="auth-story-copy">
+        <div className="auth-insight"><span>INSIGHT</span> <strong>SPARK</strong></div>
+        <h2>SEE WHAT<br/>OTHERS MISS.</h2>
+      </div>
+      <div className="auth-process">Analyze. Discover. Improve.</div>
     </section>
     <form className="auth-card" onSubmit={submit}>
       <div className="logo auth-logo"><Image src="/ismo-symbol.png" width={38} height={38} alt="" priority/><div><b>ismo.</b><small>WEB ANALYTICS</small></div></div>
