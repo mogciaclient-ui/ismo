@@ -58,7 +58,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (!isFirebaseConfigured) return <>{children}</>;
   if (!user) return <main className="auth-shell"><div className="auth-layout">
     <section className="auth-story" aria-label="ismo.について">
-      <div className="auth-story-mark"><Image src="/ismo-symbol.png" width={54} height={54} alt="" priority/><span>ismo.</span></div>
+      <div className="auth-story-mark"><Image src="/ismo-symbol.png" width={54} height={54} alt="" priority/><span>ismo<span className="brand-dot">.</span></span></div>
       <div className="auth-story-copy">
         <div className="auth-insight"><span>INSIGHT</span> <strong>SPARK</strong></div>
         <h2><span>SEE WHAT</span><strong>OTHERS MISS.</strong></h2>
@@ -66,7 +66,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       </div>
     </section>
     <form className="auth-card" onSubmit={submit}>
-      <div className="logo auth-logo"><Image src="/ismo-symbol.png" width={38} height={38} alt="" priority/><div><b>ismo.</b><small>WEB ANALYTICS</small></div></div>
+      <div className="logo auth-logo"><Image src="/ismo-symbol.png" width={38} height={38} alt="" priority/><div><b>ismo<span className="brand-dot">.</span></b><small>WEB ANALYTICS</small></div></div>
       <p className="auth-eyebrow">WELCOME BACK</p><h1>ログイン</h1>
       <p>管理者から発行されたアカウントでログインしてください。</p>
       <label><span>メールアドレス</span><input type="email" autoComplete="email" required value={email} onChange={event => setEmail(event.target.value)} /></label>

@@ -13,6 +13,8 @@
   --green: #d94d67;
 }
 
+.brand-dot { color: var(--pink); }
+
 body {
   background: var(--paper);
   color: var(--ink);
