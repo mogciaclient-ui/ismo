@@ -18,9 +18,6 @@ export const isFirebaseConfigured = Boolean(config.apiKey && config.projectId &&
 export function getFirebaseServices() {
   if (!isFirebaseConfigured) throw new Error("Firebase environment variables are not configured");
   const app = getApps().length ? getApp() : initializeApp(config);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-  const functions = getFunctions(app, process.env.NEXT_PUBLIC_FIREBASE_FUNCTIONS_REGION ?? "asia-northeast1");
 
   if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY && !window.__MOGCIA_APP_CHECK__) {
     initializeAppCheck(app, {
@@ -29,6 +26,10 @@ export function getFirebaseServices() {
     });
     window.__MOGCIA_APP_CHECK__ = true;
   }
+
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const functions = getFunctions(app, process.env.NEXT_PUBLIC_FIREBASE_FUNCTIONS_REGION ?? "asia-northeast1");
 
   if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === "true" && typeof window !== "undefined" && !window.__MOGCIA_EMULATORS_CONNECTED__) {
     connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
