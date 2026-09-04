@@ -126,7 +126,14 @@ export const collect = onRequest({ region, cors: false, maxInstances: 20, timeou
   if (Number(req.get("content-length") ?? 0) > 64_000) { res.status(413).json({ error: "Payload too large" }); return; }
 
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const rawBody = Buffer.isBuffer(req.rawBody) ? req.rawBody.toString("utf8") : "";
+    const body = typeof req.body === "string"
+      ? JSON.parse(req.body)
+      : Buffer.isBuffer(req.body)
+        ? JSON.parse(req.body.toString("utf8"))
+        : req.body && typeof req.body === "object" && !ArrayBuffer.isView(req.body)
+          ? req.body
+          : JSON.parse(rawBody);
     const events = Array.isArray(body?.events) ? body.events : [];
     if (body?.schemaVersion !== 1 || events.length < 1 || events.length > 20) throw new Error("Invalid batch");
     const siteId = requireString(events[0]?.siteId, "siteId", 80);
@@ -142,12 +149,13 @@ export const collect = onRequest({ region, cors: false, maxInstances: 20, timeou
     const batch = db.batch();
     for (const event of cleaned) {
       const ref = db.doc(`sites/${siteId}/events/${event.eventId}`);
-      batch.set(ref, { ...event, occurredAt: Timestamp.fromDate(new Date(event.occurredAt)), receivedAt: FieldValue.serverTimestamp() });
+      const storedEvent = Object.fromEntries(Object.entries(event).filter(([, value]) => value !== undefined));
+      batch.set(ref, { ...storedEvent, occurredAt: Timestamp.fromDate(new Date(event.occurredAt)), receivedAt: FieldValue.serverTimestamp() });
     }
     await batch.commit();
     res.status(202).json({ accepted: cleaned.length });
   } catch (error) {
-    logger.warn("Rejected analytics batch", { message: error instanceof Error ? error.message : "Unknown error" });
+    logger.warn(`Rejected analytics batch: ${error instanceof Error ? error.message : "Unknown error"}`);
     res.status(400).json({ error: "Invalid analytics payload" });
   }
 });
