@@ -1,0 +1,22 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "occurredAt", "order": "ASCENDING" },
+        { "fieldPath": "eventName", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "occurredAt", "order": "ASCENDING" },
+        { "fieldPath": "deviceType", "order": "ASCENDING" },
+        { "fieldPath": "pagePath", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

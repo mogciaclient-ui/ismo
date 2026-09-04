@@ -1,0 +1,31 @@
+.measurement-note {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: -7px 0 16px;
+  padding: 11px 14px;
+  color: #6e5a2c;
+  background: #fff8e8;
+  border: 1px solid #eadbb9;
+  border-radius: 10px;
+}
+
+.measurement-note > svg { flex: none; color: #c69528; }
+.measurement-note > div { display: flex; align-items: center; gap: 9px; flex: 1; }
+.measurement-note b { font-size: 9px; white-space: nowrap; }
+.measurement-note span { color: #887750; font-size: 9px; }
+.measurement-note em {
+  padding: 5px 7px;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 700;
+  white-space: nowrap;
+  background: #f1dfb4;
+  border-radius: 5px;
+}
+
+@media (max-width: 760px) {
+  .measurement-note { align-items: flex-start; }
+  .measurement-note > div { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .measurement-note em { display: none; }
+}
