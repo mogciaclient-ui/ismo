@@ -8,6 +8,7 @@
     siteId: script.dataset.siteId || "",
     endpoint: script.dataset.endpoint || "/api/collect",
     consentMode: script.dataset.consentMode || "required",
+    privacyUrl: script.dataset.privacyUrl || "",
     debug: script.dataset.debug === "true",
   };
   if (!config.siteId) return;
@@ -17,7 +18,8 @@
   var queue = [];
   var scrollSent = {};
   var flushTimer;
-  var sessionId = getSessionId();
+  var sessionId;
+  var consentBanner;
 
   function uuid() {
     return crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -31,8 +33,12 @@
       return id;
     } catch (_) { return uuid(); }
   }
+  function consentState() {
+    try { return localStorage.getItem(CONSENT_KEY); }
+    catch (_) { return null; }
+  }
   function hasConsent() {
-    return config.consentMode === "analytics_only" || localStorage.getItem(CONSENT_KEY) === "granted";
+    return config.consentMode === "analytics_only" || consentState() === "granted";
   }
   function deviceType() {
     return innerWidth < 768 ? "mobile" : innerWidth < 1100 ? "tablet" : "desktop";
@@ -55,7 +61,7 @@
       eventId: uuid(),
       eventName: eventName,
       siteId: config.siteId,
-      sessionId: sessionId,
+      sessionId: sessionId || (sessionId = getSessionId()),
       occurredAt: new Date().toISOString(),
       pagePath: location.pathname,
       referrer: safeReferrer(),
@@ -107,14 +113,71 @@
     });
   }
   function consent(value) {
-    localStorage.setItem(CONSENT_KEY, value ? "granted" : "denied");
+    try { localStorage.setItem(CONSENT_KEY, value ? "granted" : "denied"); }
+    catch (_) { /* Continue with the current-page choice when storage is unavailable. */ }
+    if (consentBanner) { consentBanner.remove(); consentBanner = null; }
     if (value) track("page_view");
     else queue.length = 0;
+  }
+  function showConsent(force) {
+    if (config.consentMode !== "required" || consentBanner || (!force && consentState() !== null)) return;
+    var host = document.createElement("div");
+    host.id = "mogcia-consent";
+    host.setAttribute("role", "dialog");
+    host.setAttribute("aria-label", "アクセス解析の設定");
+    host.style.cssText = "position:fixed;z-index:2147483647;left:16px;right:16px;bottom:16px;display:flex;justify-content:center;pointer-events:none";
+    var panel = document.createElement("div");
+    panel.style.cssText = "box-sizing:border-box;display:flex;align-items:center;gap:20px;width:min(720px,100%);padding:18px 20px;border:1px solid #dedcd4;border-radius:14px;background:#fff;color:#242422;box-shadow:0 16px 50px rgba(0,0,0,.16);font:13px/1.7 -apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans-serif;pointer-events:auto";
+    var copy = document.createElement("div");
+    copy.style.cssText = "flex:1;min-width:0";
+    var title = document.createElement("strong");
+    title.textContent = "アクセス解析について";
+    title.style.cssText = "display:block;margin-bottom:3px;font-size:14px";
+    var description = document.createElement("span");
+    description.textContent = "サイト改善のため、個人を特定しない形で閲覧状況を計測します。";
+    copy.appendChild(title);
+    copy.appendChild(description);
+    if (config.privacyUrl) {
+      var privacy = document.createElement("a");
+      privacy.href = config.privacyUrl;
+      privacy.textContent = " 詳細を見る";
+      privacy.style.cssText = "color:#4d681d;text-decoration:underline;white-space:nowrap";
+      copy.appendChild(privacy);
+    }
+    var actions = document.createElement("div");
+    actions.style.cssText = "display:flex;gap:8px;flex:none";
+    var deny = document.createElement("button");
+    deny.type = "button";
+    deny.textContent = "拒否する";
+    deny.setAttribute("data-mogcia-consent", "deny");
+    deny.style.cssText = "padding:10px 14px;border:1px solid #d8d6ce;border-radius:8px;background:#fff;color:#555;font:inherit;cursor:pointer";
+    deny.addEventListener("click", function () { consent(false); });
+    var accept = document.createElement("button");
+    accept.type = "button";
+    accept.textContent = "許可する";
+    accept.setAttribute("data-mogcia-consent", "accept");
+    accept.style.cssText = "padding:10px 16px;border:1px solid #242422;border-radius:8px;background:#242422;color:#fff;font:inherit;font-weight:700;cursor:pointer";
+    accept.addEventListener("click", function () { consent(true); });
+    actions.appendChild(deny);
+    actions.appendChild(accept);
+    panel.appendChild(copy);
+    panel.appendChild(actions);
+    host.appendChild(panel);
+    document.body.appendChild(host);
+    consentBanner = host;
+    if (matchMedia("(max-width: 600px)").matches) {
+      panel.style.cssText += ";align-items:stretch;flex-direction:column;gap:14px";
+      actions.style.cssText += ";width:100%";
+      deny.style.cssText += ";flex:1";
+      accept.style.cssText += ";flex:1";
+    }
   }
 
   document.addEventListener("click", onClick, { capture: true, passive: true });
   addEventListener("scroll", onScroll, { passive: true });
   addEventListener("pagehide", flush);
-  window.MogciaAnalytics = { track: track, flush: flush, consent: consent, version: "1.0.0" };
+  window.MogciaAnalytics = { track: track, flush: flush, consent: consent, showConsent: function () { showConsent(true); }, version: "1.1.0" };
   track("page_view");
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { showConsent(false); }, { once: true });
+  else showConsent(false);
 })();

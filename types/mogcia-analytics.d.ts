@@ -7,6 +7,7 @@ declare global {
       track: (eventName: "page_view" | "click" | "scroll" | "cta_click" | "conversion", properties?: Record<string, unknown>) => boolean;
       flush: () => void;
       consent: (granted: boolean) => void;
+      showConsent: () => void;
     };
   }
 }

@@ -5,17 +5,24 @@
 ```html
 <script
   defer
-  src="https://analytics.mogcia.jp/mogcia-analytics.js"
+  src="https://ismo-data.app/mogcia-analytics.js"
   data-site-id="YOUR_SITE_ID"
   data-endpoint="https://asia-northeast1-YOUR_PROJECT.cloudfunctions.net/collect"
   data-consent-mode="required"
+  data-privacy-url="https://www.example.com/privacy"
 ></script>
 ```
 
-Consent must be granted by the host site's consent manager:
+When consent mode is `required`, the tag displays its own consent banner. It stores the choice in local storage and starts measurement only after the visitor chooses Allow. An existing consent manager can still control it directly:
 
 ```js
 window.MogciaAnalytics?.consent(true);
+```
+
+To let a visitor reopen the banner from a privacy-settings link:
+
+```js
+window.MogciaAnalytics?.showConsent();
 ```
 
 ## Mark stable elements and conversions
