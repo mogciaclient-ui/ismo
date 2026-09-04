@@ -101,7 +101,35 @@ function FlowScreen() {
   return <><PageTitle eyebrow="USER JOURNEY" title="導線分析" sub="流入元別に、各ページへ到達したセッション数を比較します。"/><MeasurementNote coverage={snapshot?.attributionCoverage}/>{snapshot?.journeys.length?<FilterPills items={snapshot.journeys.map(item=>item.source)} active={source} setActive={setSource}/>:null}<section className="panel flow-panel"><PanelHead title={`${source||"流入元"} のページ到達`} note="直近30日"/><div className="flow-canvas">{pages.length?pages.map((page,i)=><div className="flow-item" key={page.name}><div className={`flow-node n${i}`}><small>{i===0?"最多到達":"PAGE"}</small><b>{page.name}</b><strong>{page.sessions.toLocaleString()}</strong><span>sessions</span></div>{i<pages.length-1&&<div className="connector"><span>{page.sessions?Math.round(pages[i+1].sessions/page.sessions*100):0}%</span><ArrowRight size={24}/><small>{Math.max(0,page.sessions-pages[i+1].sessions).toLocaleString()} 差</small></div>}</div>):<EmptyState/>}</div><div className="flow-note"><Lightbulb weight="fill"/><p><b>ページ到達数の比較です。</b><br/>同一セッションの厳密な閲覧順序ではないため、遷移順の断定には使わず、関心ページの発見に利用してください。</p></div></section></>;
 }
 
-function HeatmapScreen(){ const [mode,setMode]=useState("クリック"); const [device,setDevice]=useState("Smartphone"); const [heatmap,setHeatmap]=useState<import("@/lib/analytics").HeatmapSnapshot|null>(null); const handleData=useMemo(()=>setHeatmap,[]); const middleReach=heatmap?.scrollReach.find(row=>row.depth===50)?.percentage??0; return <><PageTitle eyebrow="BEHAVIOR MAP" title="ヒートマップ" sub="計測に同意したセッションの操作傾向を確認します。"/><MeasurementNote/><div className="filter-row"><FilterPills items={["クリック","スクロール","注目エリア"]} active={mode} setActive={setMode}/><FilterPills items={["PC","Smartphone","Tablet"]} active={device} setActive={setDevice}/></div><div className="heat-layout"><section className="panel heat-preview"><div className="browser-bar"><i/><i/><i/><span>www.mogcia.net /</span></div><div className={`mock-site ${device.toLowerCase()}`}><header><b>MOGCIA</b><nav>ABOUT　 SERVICE　 WORKS　 CONTACT</nav></header><div className="mock-hero"><small>PAGE PREVIEW</small><h2>クリック位置を<br/>画面比率で表示</h2><button>計測対象ボタン</button></div><div className="mock-section"><small>SCROLL AREA</small><h3>実ページ座標に基づく<br/>操作分布</h3><div className="mock-cards"><i/><i/><i/></div></div><div className="fold">50% VIEWED</div><HeatmapOverlay device={device} mode={mode} onData={handleData}/></div></section><aside className="panel heat-aside"><PanelHead title="実測値" note={`${device} / ${mode}`}/><div className="mini-stat"><span>計測サンプル</span><b>{heatmap?.sampleSize.toLocaleString()??"—"}</b></div><div className="mini-stat"><span>50%地点の到達率</span><b>{middleReach}%</b></div><div className="heat-insight"><Sparkle weight="fill"/><p><b>位置データをページ全体の比率へ補正済み</b><br/>背景は簡易プレビューです。点の位置は実際のビューポート幅とドキュメント高さを基準に表示します。</p></div><div className="heat-legend"><span><i className="hot"/>クリック位置</span><span><i className="warm"/>中程度</span><span><i className="cold"/>少ない</span></div></aside></div></> }
+function HeatmapScreen() {
+  const [mode, setMode] = useState("クリック");
+  const [device, setDevice] = useState("Smartphone");
+  const [heatmap, setHeatmap] = useState<import("@/lib/analytics").HeatmapSnapshot | null>(null);
+  const handleData = useMemo(() => setHeatmap, []);
+  const middleReach = heatmap?.scrollReach.find(row => row.depth === 50)?.percentage ?? 0;
+
+  return <>
+    <PageTitle eyebrow="BEHAVIOR MAP" title="ヒートマップ" sub="計測に同意したセッションの操作傾向を確認します。" />
+    <MeasurementNote />
+    <div className="filter-row"><FilterPills items={["クリック", "スクロール", "注目エリア"]} active={mode} setActive={setMode} /><FilterPills items={["PC", "Smartphone", "Tablet"]} active={device} setActive={setDevice} /></div>
+    <div className="heat-layout">
+      <section className="panel heat-preview">
+        <div className="browser-bar"><i /><i /><i /><span>www.mogcia.net /</span><em>LIVE PREVIEW</em></div>
+        <div className={`site-preview ${device.toLowerCase()}`}>
+          <iframe src="https://www.mogcia.net/" title="www.mogcia.net ライブプレビュー" loading="lazy" tabIndex={-1} />
+          <HeatmapOverlay device={device} mode={mode} onData={handleData} />
+        </div>
+      </section>
+      <aside className="panel heat-aside">
+        <PanelHead title="実測値" note={`${device} / ${mode}`} />
+        <div className="mini-stat"><span>計測サンプル</span><b>{heatmap?.sampleSize.toLocaleString() ?? "—"}</b></div>
+        <div className="mini-stat"><span>50%地点の到達率</span><b>{middleReach}%</b></div>
+        <div className="heat-insight"><Sparkle weight="fill" /><p><b>実サイトに計測データを重ねて表示</b><br />背景は現在のwww.mogcia.netです。誤操作を防ぐため、プレビュー内のリンクは操作できません。</p></div>
+        <div className="heat-legend"><span><i className="hot" />クリック位置</span><span><i className="warm" />中程度</span><span><i className="cold" />少ない</span></div>
+      </aside>
+    </div>
+  </>;
+}
 
 const aiAnswers:Record<string,string>={
   "どこを改善すべき？":"優先度が最も高いのは、スマートフォン版の料金ページです。到達ユーザーの62%がCTAを押さずに離脱しています。料金表直下に「相談して決める」CTAと導入事例を追加すると、検討時の不安を減らせます。",

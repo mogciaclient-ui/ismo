@@ -131,6 +131,47 @@ button:active { transform: translateY(1px); }
 .measurement-note em { color: #bf4259; background: #ffdce2; }
 
 .mock-site { background: #f7f7f8; }
+
+.browser-bar span {
+  margin-left: auto;
+}
+
+.browser-bar em {
+  margin-left: auto;
+  color: #ff647c;
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: .1em;
+}
+
+.site-preview {
+  position: relative;
+  height: 520px;
+  overflow: hidden;
+  background: #f7f7f8;
+}
+
+.site-preview.smartphone {
+  max-width: 390px;
+  margin: auto;
+  border-right: 1px solid #e7e7ea;
+  border-left: 1px solid #e7e7ea;
+}
+
+.site-preview.tablet {
+  max-width: 768px;
+  margin: auto;
+}
+
+.site-preview iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+  pointer-events: none;
+}
 .mock-hero { background: #ececf0; }
 .mock-hero::after { color: #dedee3; }
 .fold { border-color: var(--pink); color: var(--pink); }
