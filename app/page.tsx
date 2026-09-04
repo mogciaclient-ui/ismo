@@ -107,6 +107,7 @@ function HeatmapScreen() {
   const [heatmap, setHeatmap] = useState<import("@/lib/analytics").HeatmapSnapshot | null>(null);
   const handleData = useMemo(() => setHeatmap, []);
   const middleReach = heatmap?.scrollReach.find(row => row.depth === 50)?.percentage ?? 0;
+  const previewHeight = Math.max(520, Math.min(heatmap?.pageHeight ?? 520, 12000));
 
   return <>
     <PageTitle eyebrow="BEHAVIOR MAP" title="ヒートマップ" sub="計測に同意したセッションの操作傾向を確認します。" />
@@ -114,17 +115,19 @@ function HeatmapScreen() {
     <div className="filter-row"><FilterPills items={["クリック", "スクロール", "注目エリア"]} active={mode} setActive={setMode} /><FilterPills items={["PC", "Smartphone", "Tablet"]} active={device} setActive={setDevice} /></div>
     <div className="heat-layout">
       <section className="panel heat-preview">
-        <div className="browser-bar"><i /><i /><i /><span>www.mogcia.net /</span><em>LIVE PREVIEW</em></div>
+        <div className="browser-bar"><i /><i /><i /><span>www.mogcia.net /</span><em>SCROLL PREVIEW</em></div>
         <div className={`site-preview ${device.toLowerCase()}`}>
-          <iframe src="https://www.mogcia.net/" title="www.mogcia.net ライブプレビュー" loading="lazy" tabIndex={-1} />
-          <HeatmapOverlay device={device} mode={mode} onData={handleData} />
+          <div className="site-preview-canvas" style={{ height: previewHeight }}>
+            <iframe src="https://www.mogcia.net/" title="www.mogcia.net ライブプレビュー" loading="lazy" tabIndex={-1} />
+            <HeatmapOverlay device={device} mode={mode} onData={handleData} />
+          </div>
         </div>
       </section>
       <aside className="panel heat-aside">
         <PanelHead title="実測値" note={`${device} / ${mode}`} />
         <div className="mini-stat"><span>計測サンプル</span><b>{heatmap?.sampleSize.toLocaleString() ?? "—"}</b></div>
         <div className="mini-stat"><span>50%地点の到達率</span><b>{middleReach}%</b></div>
-        <div className="heat-insight"><Sparkle weight="fill" /><p><b>実サイトに計測データを重ねて表示</b><br />背景は現在のwww.mogcia.netです。誤操作を防ぐため、プレビュー内のリンクは操作できません。</p></div>
+        <div className="heat-insight"><Sparkle weight="fill" /><p><b>実サイトに計測データを重ねて表示</b><br />プレビュー内を縦にスクロールできます。点と背景は一緒に移動し、リンクの誤操作は起きません。</p></div>
         <div className="heat-legend"><span><i className="hot" />クリック位置</span><span><i className="warm" />中程度</span><span><i className="cold" />少ない</span></div>
       </aside>
     </div>

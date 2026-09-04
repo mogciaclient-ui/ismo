@@ -150,9 +150,14 @@ button:active { transform: translateY(1px); }
 .site-preview {
   position: relative;
   height: 520px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   background: #f7f7f8;
+  scrollbar-color: #ff8fa3 #ececf0;
+  scrollbar-width: thin;
 }
+
+.site-preview-canvas { position: relative; min-height: 100%; }
 
 .site-preview.smartphone {
   max-width: 390px;
