@@ -21,7 +21,8 @@ export function SettingsScreen() {
   if (!settings) return <div className="settings-loading"><i/><span>{status === "error" ? "設定を読み込めませんでした" : "サイト設定を読み込み中"}</span></div>;
 
   const collectorUrl = process.env.NEXT_PUBLIC_MOGCIA_COLLECTOR_URL ?? "COLLECTOR_URL_NOT_CONFIGURED";
-  const snippet = `<script defer src="https://analytics.mogcia.jp/mogcia-analytics.js"\n  data-site-id="${settings.id}"\n  data-endpoint="${collectorUrl}"\n  data-consent-mode="${settings.consentMode}"></script>`;
+  const scriptUrl = typeof window === "undefined" ? "/mogcia-analytics.js" : `${window.location.origin}/mogcia-analytics.js`;
+  const snippet = `<script defer src="${scriptUrl}"\n  data-site-id="${settings.id}"\n  data-endpoint="${collectorUrl}"\n  data-consent-mode="${settings.consentMode}"></script>`;
 
   return <>
     <div className="page-head"><div><p className="eyebrow">MEASUREMENT SETUP</p><h1>サイト設定</h1><p className="sub">Firebase接続後も同じ画面から計測・ゴール・権限を管理します。</p></div><div className={`mode-badge ${analyticsMode}`}><i/>{analyticsMode === "firebase" ? "Firebase接続" : "デモデータ"}</div></div>
