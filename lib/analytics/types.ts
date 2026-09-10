@@ -26,6 +26,7 @@ export type AnalyticsEvent = {
   viewportHeight: number;
   documentHeight?: number;
   engagementSeconds?: number;
+  attentionBands?: number[];
   coordinateSpace?: "page";
   elementId?: string;
   elementTag?: string;
@@ -87,6 +88,7 @@ export type HeatmapSnapshot = {
   screenshotUrl?: string;
   pageHeight: number;
   points: HeatmapPoint[];
+  attentionBands?: Array<{ index: number; seconds: number; weight: number }>;
   scrollReach: Array<{ depth: number; percentage: number }>;
 };
 

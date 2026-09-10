@@ -28,6 +28,8 @@
   var previewResizeObserver;
   var previewMutationObserver;
   var previewHeightTimer;
+  var attentionBands = Array(20).fill(0);
+  var attentionTimer;
 
   function dashboardOrigin() {
     var allowed = [config.dashboardOrigin];
@@ -189,7 +191,16 @@
   function trackEngagement() {
     if (!hasConsent()) return;
     var seconds = Math.min(86400, Math.round((Date.now() - pageStartedAt) / 1000));
-    if (seconds > 0) track("engagement", { engagementSeconds: seconds });
+    if (seconds > 0) track("engagement", { engagementSeconds: seconds, attentionBands: attentionBands.slice() });
+  }
+  function sampleAttention() {
+    if (!hasConsent() || document.visibilityState !== "visible") return;
+    var documentHeight = currentDocumentHeight();
+    if (!documentHeight) return;
+    var first = Math.max(0, Math.min(19, Math.floor(scrollY / documentHeight * 20)));
+    var last = Math.max(first, Math.min(19, Math.floor((scrollY + innerHeight - 1) / documentHeight * 20)));
+    var share = 1 / (last - first + 1);
+    for (var index = first; index <= last; index += 1) attentionBands[index] += share;
   }
   function routeChanged() {
     if (location.pathname === lastPath) return;
@@ -197,6 +208,7 @@
     lastPath = location.pathname;
     pageStartedAt = Date.now();
     scrollSent = {};
+    attentionBands = Array(20).fill(0);
     track("page_view");
     schedulePreviewMetrics();
   }
@@ -279,11 +291,13 @@
   document.addEventListener("click", onClick, { capture: true, passive: true });
   addEventListener("scroll", onScroll, { passive: true });
   addEventListener("popstate", routeChanged);
+  attentionTimer = setInterval(sampleAttention, 1000);
   addEventListener("pagehide", function () {
     trackEngagement();
     flush();
     if (previewResizeObserver) previewResizeObserver.disconnect();
     if (previewMutationObserver) previewMutationObserver.disconnect();
+    clearInterval(attentionTimer);
   });
   window.MogciaAnalytics = { track: track, flush: flush, consent: consent, showConsent: function () { showConsent(true); }, version: "1.4.0" };
   track("page_view");

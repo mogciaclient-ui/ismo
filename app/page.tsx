@@ -150,8 +150,8 @@ function HeatmapScreen() {
           <div className="mini-stat"><span>計測サンプル</span><b>{heatmap?.sampleSize.toLocaleString() ?? "—"}</b></div>
           <div className="mini-stat"><span>50%地点の到達率</span><b>{middleReach}%</b></div>
         </div>
-        <div className="heat-insight"><Sparkle weight="fill" /><p><b>実サイトに計測データを重ねて表示</b><br />ページの先頭から末尾まで一続きで表示します。点と背景は一緒に移動し、リンクの誤操作は起きません。</p></div>
-        <div className="heat-legend"><span><i className="hot" />クリック位置</span><span><i className="warm" />中程度</span><span><i className="cold" />少ない</span></div>
+        <div className="heat-insight"><Sparkle weight="fill" /><p><b>{mode === "注目エリア" ? "熟読された場所を色で表示" : "実サイトに計測データを重ねて表示"}</b><br />{mode === "注目エリア" ? "画面内に表示されていた時間を集計し、よく読まれた場所ほど暖色で表示します。" : "ページの先頭から末尾まで一続きで表示します。点と背景は一緒に移動し、リンクの誤操作は起きません。"}</p></div>
+        <div className="heat-legend"><span><i className="hot" />{mode === "注目エリア" ? "長く読まれた" : "クリック位置"}</span><span><i className="warm" />中程度</span><span><i className="attention-cold" />{mode === "注目エリア" ? "短い" : "少ない"}</span></div>
       </section>
       <section className="panel heat-preview">
         <div className="browser-bar"><i /><i /><i /><span>{selectedSite.domain || "URL未設定"}{pagePath === "/" ? "" : pagePath}</span><em className={previewConnected ? "connected" : ""}>{previewConnected ? "LIVE FULL PAGE" : "RECORDED HEIGHT"}</em></div>

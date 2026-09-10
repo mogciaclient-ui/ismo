@@ -65,7 +65,7 @@ export function SiteAnalysisScreen() {
   const overview = [{ en: "SITE SUMMARY", ja: "サイト概要", text: analysis?.summary }, { en: "MAIN MESSAGE", ja: "メイン訴求", text: analysis?.mainMessage }, { en: "TARGET", ja: "想定ターゲット", text: analysis?.target }];
   const diagnostics = [{ title: "セクション構成", label: "STRUCTURE", items: analysis?.sections ?? [] }, { title: "訴求・強み", label: "MESSAGING", items: analysis?.strengths ?? [] }, { title: "CTA", label: "CALL TO ACTION", items: analysis?.ctas ?? [] }];
   const history = settings.analysisHistory ?? [];
-  return <><ScreenHead eyebrow="UNDERSTAND" title="Site Analysis" sub="現在のWebサイトを、登録したStrategyに照らして一画面で読み解きます。" action={<button className="primary-action" onClick={run} disabled={running}><Sparkle />{running ? "分析中…" : analysis ? "再分析" : "サイトを分析"}</button>} />{error && <div className="inline-error">{error}</div>}<div className="site-analysis-board"><section className="panel analysis-result analysis-overview"><div className="panel-head"><h3>サイト全体</h3><span>OVERVIEW</span></div>{analysis ? overview.map(item => <article key={item.en}><span><small>{item.en}</small>{item.ja}</span><p>{item.text}</p></article>) : <div className="empty-state">サイト分析を実行すると表示されます</div>}</section><section className="panel analysis-side"><span>AI EVALUATION</span><h3>{settings.strategy?.audience ? "Strategy登録済み" : "Strategyが未登録です"}</h3><p>{analysis?.recommendations?.[0] ?? (settings.strategy?.audience ? "サイトを分析すると、登録したStrategyに対する評価を表示します。" : "先にWHO・FROM・WHY・GOALを登録すると、目的に対する評価ができます。")}</p></section><section className="panel analysis-result analysis-pages"><div className="panel-head"><h3>主要ページ</h3><span>PAGES</span></div>{analysis?.pages?.length ? analysis.pages.map((item, index) => <article key={item.url}><span>{String(index + 1).padStart(2, "0")}</span><p><b>{item.title}</b><small>{item.url}</small>{item.summary}</p></article>) : <div className="empty-state">主要ページはまだ分析されていません</div>}</section>{diagnostics.map(section => <section className="panel analysis-result analysis-diagnostic" key={section.label}><div className="panel-head"><h3>{section.title}</h3><span>{section.label}</span></div>{section.items.length ? section.items.map((item, index) => <article key={`${item}-${index}`}><span>{String(index + 1).padStart(2, "0")}</span><p>{item}</p></article>) : <div className="empty-state">分析結果がありません</div>}</section>)}<section className="panel analysis-history analysis-history-wide"><div className="panel-head"><h3>分析履歴</h3><span>SNAPSHOTS</span></div>{history.length ? history.slice(-4).reverse().map((item, index) => <article key={`${item.analyzedAt}-${index}`}><time>{new Date(item.analyzedAt).toLocaleDateString("ja-JP")}</time><p>{item.summary}</p></article>) : <div className="empty-state">分析履歴はまだありません</div>}</section></div></>;
+  return <><ScreenHead eyebrow="UNDERSTAND" title="Site Analysis" sub="現在のWebサイトを、登録したStrategyに照らして一画面で読み解きます。" action={<div className="analysis-head-actions"><span className={settings.strategy?.audience ? "ready" : "missing"}><i />{settings.strategy?.audience ? "Strategy登録済み" : "Strategy未登録"}</span><button className="primary-action" onClick={run} disabled={running}><Sparkle />{running ? "分析中…" : analysis ? "再分析" : "サイトを分析"}</button></div>} />{error && <div className="inline-error">{error}</div>}<div className="site-analysis-board"><section className="panel analysis-result analysis-overview analysis-overview-wide"><div className="panel-head"><h3>サイト全体</h3><span>OVERVIEW</span></div>{analysis ? overview.map(item => <article key={item.en}><span><small>{item.en}</small>{item.ja}</span><p>{item.text}</p></article>) : <div className="empty-state">サイト分析を実行すると表示されます</div>}</section><section className="panel analysis-result analysis-pages"><div className="panel-head"><h3>主要ページ</h3><span>PAGES</span></div>{analysis?.pages?.length ? analysis.pages.map((item, index) => <article key={item.url}><span>{String(index + 1).padStart(2, "0")}</span><p><b>{item.title}</b><small>{item.url}</small>{item.summary}</p></article>) : <div className="empty-state">主要ページはまだ分析されていません</div>}</section>{diagnostics.map(section => <section className="panel analysis-result analysis-diagnostic" key={section.label}><div className="panel-head"><h3>{section.title}</h3><span>{section.label}</span></div>{section.items.length ? section.items.map((item, index) => <article key={`${item}-${index}`}><span>{String(index + 1).padStart(2, "0")}</span><p>{item}</p></article>) : <div className="empty-state">分析結果がありません</div>}</section>)}<section className="panel analysis-history analysis-history-wide"><div className="panel-head"><h3>分析履歴</h3><span>SNAPSHOTS</span></div>{history.length ? history.slice(-4).reverse().map((item, index) => <article key={`${item.analyzedAt}-${index}`}><time>{new Date(item.analyzedAt).toLocaleDateString("ja-JP")}</time><p>{item.summary}</p></article>) : <div className="empty-state">分析履歴はまだありません</div>}</section></div></>;
 }
 
 export function CompetitorsScreen() {
@@ -83,15 +83,55 @@ export function CompetitorsScreen() {
 
 export function ImproveScreen({ embedded = false }: { embedded?: boolean }) {
   const { settings, setSettings, save, saving } = useSiteSettings();
-  const [title, setTitle] = useState("");
   if (!settings) return <Loading />;
   const improvements = settings.improvements ?? [];
   const logs = settings.changeLog ?? [];
-  const addIdea = (idea: string, evidence = "AI分析") => { if (!idea.trim() || improvements.some(item => item.title === idea.trim())) return; setSettings({ ...settings, improvements: [...improvements, { id: crypto.randomUUID(), title: idea.trim(), page: "/", problem: idea.trim(), evidence, proposal: idea.trim(), priority: "Medium", status: "提案", createdAt: new Date().toISOString() }] }); };
-  const add = () => { addIdea(title); setTitle(""); };
-  const nextStatus = (id: string) => { const order = ["提案", "承認", "対応中", "公開", "検証"] as const; const item = improvements.find(row => row.id === id)!; const next = order[Math.min(order.indexOf(item.status) + 1, order.length - 1)]; const updated = improvements.map(row => row.id === id ? { ...row, status: next } : row); const changeLog = next === "公開" && item.status !== "公開" ? [...logs, { id: crypto.randomUUID(), date: new Date().toISOString().slice(0, 10), title: item.title, reason: item.problem || item.proposal, result: "検証待ち" }] : logs; setSettings({ ...settings, improvements: updated, changeLog }); };
+  const addIdea = (idea: string, evidence = "AI分析") => {
+    if (!idea.trim() || improvements.some(item => item.title === idea.trim())) return;
+    const next = { ...settings, improvements: [...improvements, { id: crypto.randomUUID(), title: idea.trim(), page: "/", problem: idea.trim(), evidence, proposal: idea.trim(), priority: "Medium" as const, status: "提案" as const, createdAt: new Date().toISOString() }] };
+    setSettings(next);
+    void save(next);
+  };
+  const nextStatus = (id: string) => {
+    const order = ["提案", "承認", "対応中", "公開", "検証"] as const;
+    const item = improvements.find(row => row.id === id);
+    if (!item) return;
+    const status = order[Math.min(order.indexOf(item.status) + 1, order.length - 1)];
+    const updated = improvements.map(row => row.id === id ? { ...row, status } : row);
+    const changeLog = status === "公開" && item.status !== "公開" ? [...logs, { id: crypto.randomUUID(), date: new Date().toISOString().slice(0, 10), title: item.title, reason: item.problem || item.proposal, result: "検証待ち" }] : logs;
+    const next = { ...settings, improvements: updated, changeLog };
+    setSettings(next);
+    void save(next);
+  };
   const ideas = [{ type: "OPPORTUNITY", text: settings.siteAnalysis?.recommendations?.[0] }, { type: "DIFFERENTIATION", text: settings.competitorAnalysis?.recommendation }];
-  return <section className={embedded ? "home-improvement" : ""}>{embedded ? <div className="home-action-head"><div><p className="eyebrow">NEXT ACTION</p><h2>改善アクション</h2><p>分析結果を、実行して検証する施策へつなげます。</p></div><span>{improvements.filter(item => item.status !== "検証").length}件進行中</span></div> : <ScreenHead eyebrow="ACT" title="改善アクション" sub="Insightから改善、公開、結果検証までを一つの流れで管理します。" />}<div className="improve-overview"><section className="panel insight-list"><div className="panel-head"><h3>改善候補</h3><span>INSIGHTS</span></div>{ideas.map(idea => <article key={idea.type}><Sparkle /><div><span>{idea.type}</span><h3>{idea.text ?? `${idea.type === "OPPORTUNITY" ? "サイト分析" : "競合分析"}を実行すると表示されます。`}</h3></div>{idea.text && <button onClick={() => addIdea(idea.text!, idea.type)}>改善に追加<ArrowRight /></button>}</article>)}</section><section className="panel improvement-board"><div className="panel-head"><h3>改善施策</h3><span>{improvements.length} ITEMS</span></div><div className="improvement-add"><input value={title} onChange={event => setTitle(event.target.value)} placeholder="改善施策を追加" /><button onClick={add}><Plus />追加</button></div>{improvements.length ? improvements.map(item => <article key={item.id}><span className={`priority ${item.priority.toLowerCase()}`}>{item.priority}</span><div><h3>{item.title}</h3><p>{item.page} ・ {new Date(item.createdAt).toLocaleDateString("ja-JP")}</p></div><button onClick={() => nextStatus(item.id)}>{item.status}<ArrowRight /></button></article>) : <div className="empty-state">改善施策はまだありません</div>}</section><section className="panel change-log"><div className="panel-head"><h3>変更履歴</h3><span>CHANGE LOG</span></div>{logs.length ? logs.map(item => <article key={item.id}><time>{item.date}</time><div><h3>{item.title}</h3><p>{item.reason || "変更理由は未登録です"}</p></div><strong>{item.result}</strong></article>) : <div className="empty-state">公開された改善はまだありません</div>}</section></div><div className="settings-actions"><button disabled={saving} onClick={() => save(settings)}>{saving ? "保存中…" : "改善アクションを保存"}</button></div></section>;
+  const active = improvements.filter(item => item.status !== "検証");
+  const primary = active[0];
+  const suggested = ideas.find(idea => idea.text && !improvements.some(item => item.title === idea.text));
+  const working = improvements.filter(item => item.status === "承認" || item.status === "対応中").length;
+  const verifying = improvements.filter(item => item.status === "公開").length;
+  const completed = improvements.filter(item => item.status === "検証").length;
+
+  return <section className={embedded ? "home-improvement next-action" : "next-action"}>
+    {embedded ? <div className="home-action-head"><div><p className="eyebrow">NEXT ACTION</p><h2>次にやること</h2><p>分析結果から、いま優先する改善をひとつに絞ります。</p></div>{saving && <span>保存中…</span>}</div> : <ScreenHead eyebrow="ACT" title="次にやること" sub="分析から実行、公開、効果検証までを一つの流れで管理します。" />}
+    <section className="next-action-card">
+      <div className="next-action-mark"><Sparkle weight="fill" /></div>
+      <div className="next-action-copy">
+        <span>{primary ? `PRIORITY / ${primary.status}` : suggested ? `RECOMMENDED / ${suggested.type}` : "READY FOR ANALYSIS"}</span>
+        <h3>{primary?.title ?? suggested?.text ?? "サイト分析から、最初の改善候補を見つけましょう。"}</h3>
+        <p>{primary ? `根拠：${primary.evidence || "分析結果"}　対象ページ：${primary.page || "/"}` : suggested ? "分析で見つかった気づきを、検証できる改善アクションへつなげます。" : "サイト分析や競合分析を実行すると、ここに優先度の高い提案が表示されます。"}</p>
+      </div>
+      {primary ? <button disabled={saving || primary.status === "検証"} onClick={() => nextStatus(primary.id)}>{primary.status === "公開" ? "効果を確認する" : "次のステップへ"}<ArrowRight /></button> : suggested?.text ? <button disabled={saving} onClick={() => addIdea(suggested.text!, suggested.type)}>この改善を始める<ArrowRight /></button> : null}
+    </section>
+    <div className="action-progress-strip">
+      <div><span>進行中</span><strong>{working}</strong><small>IN PROGRESS</small></div>
+      <div><span>効果検証待ち</span><strong>{verifying}</strong><small>VERIFY</small></div>
+      <div><span>検証済み</span><strong>{completed}</strong><small>LEARNED</small></div>
+    </div>
+    {(active.length > 1 || logs.length > 0) && <div className="action-subrow">
+      {active.length > 1 && <section><div className="panel-head"><h3>このあと取り組むこと</h3><span>{active.length - 1} ACTIONS</span></div>{active.slice(1, 4).map(item => <article key={item.id}><i /><div><b>{item.title}</b><small>{item.evidence || "分析結果"}</small></div><span>{item.status}</span></article>)}</section>}
+      {logs.length > 0 && <section className="latest-change"><div className="panel-head"><h3>直近の公開</h3><span>LEARNING</span></div><b>{logs.at(-1)?.title}</b><p>{logs.at(-1)?.reason || "効果を計測しています。"}</p><small>{logs.at(-1)?.date} ・ {logs.at(-1)?.result}</small></section>}
+    </div>}
+  </section>;
 }
 
 export function PerformanceDetailScreen({ view }: { view: "Segments" | "Funnel" | "Data Quality" }) {

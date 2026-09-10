@@ -61,6 +61,7 @@ type IncomingEvent = {
   viewportHeight: number;
   documentHeight?: number;
   engagementSeconds?: number;
+  attentionBands?: number[];
   coordinateSpace?: "page";
   elementId?: string;
   elementTag?: string;
@@ -120,6 +121,7 @@ function cleanEvent(raw: unknown, expectedSiteId: string): IncomingEvent {
     viewportHeight: number(value.viewportHeight, 1, 10000) ?? 0,
     documentHeight: number(value.documentHeight, 1, 1000000),
     engagementSeconds: number(value.engagementSeconds, 0, 86400),
+    attentionBands: Array.isArray(value.attentionBands) ? value.attentionBands.slice(0, 20).map(item => number(item, 0, 86400) ?? 0) : undefined,
     coordinateSpace: value.coordinateSpace === "page" ? "page" : undefined,
     elementId: cleanOptional(value.elementId, 120),
     elementTag: cleanOptional(value.elementTag, 40),
@@ -350,6 +352,8 @@ export const getHeatmap = onCall({ region, enforceAppCheck: true }, async reques
   const sessions = new Set(events.map(event => event.sessionId));
   const clicks = events.filter(event => event.coordinateSpace === "page" && typeof event.normalizedX === "number" && typeof event.documentY === "number");
   const scrolls = events.filter(event => typeof event.scrollDepth === "number");
+  const attention = Array.from({ length: 20 }, (_, index) => events.reduce((total, event) => total + Number(event.attentionBands?.[index] ?? 0), 0));
+  const attentionMax = Math.max(0, ...attention);
   return {
     pagePath: filters.pagePath ?? "/",
     device: filters.device ?? "mobile",
@@ -362,6 +366,7 @@ export const getHeatmap = onCall({ region, enforceAppCheck: true }, async reques
       weight: 0.6,
       elementId: event.elementId,
     })),
+    attentionBands: attention.map((seconds, index) => ({ index, seconds, weight: attentionMax ? Number((seconds / attentionMax).toFixed(3)) : 0 })),
     scrollReach: [25, 50, 75, 90].map(depth => ({
       depth,
       percentage: sessions.size ? Number((new Set(scrolls.filter(event => Number(event.scrollDepth) >= depth).map(event => event.sessionId)).size / sessions.size * 100).toFixed(1)) : 0,
