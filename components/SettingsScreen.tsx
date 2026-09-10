@@ -5,6 +5,7 @@ import { Check, ClipboardText, Code, FloppyDisk, Plus, Pulse, Trash, WarningCirc
 import { analyticsMode, analyticsProvider, type ConversionRule, type GoogleIntegrationStatus, type GooglePerformance, type GoogleResources, type SiteMember, type SiteSettings } from "@/lib/analytics";
 import { useSiteWorkspace } from "@/lib/site-workspace";
 import { getLast30DaysRange } from "@/lib/date-range";
+import { BrandLoader } from "@/components/BrandLoader";
 
 const blankRule = (): ConversionRule => ({ id: crypto.randomUUID(), name: "新しいゴール", eventName: "custom_conversion", matchType: "event", matchValue: "", enabled: true });
 
@@ -46,7 +47,7 @@ export function SettingsScreen() {
   const disconnectGoogle = async () => { setIntegrationBusy(true); setIntegrationError(""); try { await analyticsProvider.disconnectGoogleIntegration(selectedSiteId); setGoogleStatus({ connected: false, ga4PropertyId: "", searchConsoleProperty: "", redirectUri: googleStatus?.redirectUri ?? "" }); setGoogleResources(null); update({ integrations: { googleConnectionStatus: "not_connected", ga4PropertyId: "", searchConsoleProperty: "" } }); } catch { setIntegrationError("Google連携を解除できませんでした。"); } finally { setIntegrationBusy(false); } };
   const testGoogleData = async () => { setIntegrationBusy(true); setIntegrationError(""); setGooglePerformance(null); try { setGooglePerformance(await analyticsProvider.getGooglePerformance(selectedSiteId, getLast30DaysRange())); } catch { setIntegrationError("データを取得できませんでした。選択したプロパティへの権限とAPIの有効化を確認してください。"); } finally { setIntegrationBusy(false); } };
 
-  if (!settings) return <div className="settings-loading"><i/><span>{status === "error" ? "設定を読み込めませんでした" : "サイト設定を読み込み中"}</span></div>;
+  if (!settings) return <BrandLoader label={status === "error" ? "設定を読み込めませんでした" : "サイト設定を読み込んでいます"} />;
 
   const collectorUrl = process.env.NEXT_PUBLIC_MOGCIA_COLLECTOR_URL ?? "COLLECTOR_URL_NOT_CONFIGURED";
   const scriptUrl = typeof window === "undefined" ? "/mogcia-analytics.js" : `${window.location.origin}/mogcia-analytics.js`;

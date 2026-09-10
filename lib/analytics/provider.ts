@@ -1,4 +1,4 @@
-import type { AiMentionSnapshot, AnalyticsFilters, CompetitorAnalysisResult, DateRange, GoogleIntegrationStatus, GooglePerformance, GoogleResources, HeatmapSnapshot, OverviewSnapshot, SiteAnalysisResult, SiteMember, SiteSettings } from "./types";
+import type { AiMentionSnapshot, AnalyticsFilters, CompetitorAnalysisResult, DateRange, GoogleIntegrationStatus, GooglePerformance, GoogleResources, HeatmapSnapshot, OverviewSnapshot, RenewalDiagnosis, SiteAnalysisResult, SiteMember, SiteSettings } from "./types";
 
 export interface AnalyticsProvider {
   getOverview(siteId: string, range: DateRange): Promise<OverviewSnapshot>;
@@ -18,4 +18,5 @@ export interface AnalyticsProvider {
   getGooglePerformance(siteId: string, range: DateRange): Promise<GooglePerformance>;
   disconnectGoogleIntegration(siteId: string): Promise<void>;
   runAiMentionMonitor(siteId: string, queries: string[]): Promise<AiMentionSnapshot>;
+  runRenewalDiagnosis(siteId: string, range: DateRange): Promise<RenewalDiagnosis>;
 }

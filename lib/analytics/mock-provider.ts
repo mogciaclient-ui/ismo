@@ -27,7 +27,7 @@ let settings: SiteSettings = {
 
 export const mockAnalyticsProvider: AnalyticsProvider = {
   async getOverview() {
-    return { measuredUsers: 8421, sessions: 10284, conversions: 126, conversionRate: 1.23, averageEngagementSeconds: 138, bounceRate: 42.8, attributionCoverage: 86.4, trend: [], sources: [], pages: [], conversionGoals: [], journeys: [], deviceSegments: [{ name: "mobile", sessions: 6800, outcomes: 78, rate: 1.15 }, { name: "desktop", sessions: 3484, outcomes: 48, rate: 1.38 }], dataQuality: { lastEventAt: new Date().toISOString(), eventCount: 18240, taggedPages: 12, hasConversions: true, attributionCoverage: 86.4 } };
+    return { measuredUsers: 8421, sessions: 10284, conversions: 126, conversionRate: 1.23, averageEngagementSeconds: 138, bounceRate: 42.8, attributionCoverage: 86.4, trend: [], sources: [], pages: [], conversionGoals: [], journeys: [], deviceSegments: [{ name: "mobile", sessions: 6800, outcomes: 78, rate: 1.15 }, { name: "desktop", sessions: 3484, outcomes: 48, rate: 1.38 }], audienceSegments: [{ source: "instagram", device: "mobile", sessions: 2860, outcomes: 42, rate: 1.47, topPages: [{ name: "/service", sessions: 1640 }, { name: "/price", sessions: 980 }, { name: "/contact", sessions: 420 }] }, { source: "tiktok", device: "mobile", sessions: 2210, outcomes: 31, rate: 1.4, topPages: [{ name: "/lp", sessions: 1880 }, { name: "/price", sessions: 740 }] }, { source: "google", device: "desktop", sessions: 1940, outcomes: 36, rate: 1.86, topPages: [{ name: "/", sessions: 1400 }, { name: "/case", sessions: 760 }] }], dataQuality: { lastEventAt: new Date().toISOString(), eventCount: 18240, taggedPages: 12, hasConversions: true, attributionCoverage: 86.4 } };
   },
   async getHeatmap(_siteId, _range, filters) {
     return { pagePath: filters.pagePath ?? "/", device: (filters.device ?? "mobile") as DeviceType, sampleSize: 2184, pageHeight: 1280, points, scrollReach: [{ depth: 25, percentage: 91 }, { depth: 50, percentage: 68 }, { depth: 75, percentage: 42 }, { depth: 90, percentage: 21 }] };
@@ -55,5 +55,8 @@ export const mockAnalyticsProvider: AnalyticsProvider = {
   async disconnectGoogleIntegration() {},
   async runAiMentionMonitor(_siteId, queries) {
     return { checkedAt: new Date().toISOString(), mentionRate: 50, queries: queries.map((query, index) => ({ query, mentioned: index % 2 === 0, answer: "デモモードのWeb検索結果です。Firebase接続時は実際の検索結果を記録します。", competitors: [], sources: [{ title: "デモ引用元", url: "https://example.com", isOwnSite: false }] })) };
+  },
+  async runRenewalDiagnosis() {
+    return { analyzedAt: new Date().toISOString(), level: "部分改修" as const, score: 68, summary: "全面的に作り直すより、成果につながっているページを残しながら、訴求と導線を部分的に改修する段階です。", reasons: [{ title: "サイトの役割とのずれ", evidence: "問い合わせ獲得に対してCTAと事例への導線が不足しています。" }, { title: "残せる資産がある", evidence: "検索流入と閲覧実績のあるページを確認できています。" }], keep: ["検索流入のある既存ページ", "現在のサービス説明"], fix: ["ファーストビューの訴求", "問い合わせまでの導線"], add: ["実績・事例", "料金や相談方法の説明"], priorityPages: [{ page: "TOP", reason: "役割と主要CTAを明確にする", priority: "High" as const }, { page: "サービス", reason: "事例と問い合わせへの導線を追加する", priority: "Medium" as const }], requirements: [{ category: "設計", items: ["主目的を問い合わせ獲得に設定", "SNS流入向けの導線を用意"] }, { category: "計測", items: ["主要CTAをコンバージョン登録"] }], dataNotes: ["デモモードの診断結果です。"] };
   },
 };

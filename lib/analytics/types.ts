@@ -52,7 +52,17 @@ export type OverviewSnapshot = {
   conversionGoals: AnalyticsTableRow[];
   journeys: Array<{ source: string; pages: Array<{ name: string; sessions: number }> }>;
   deviceSegments: AnalyticsTableRow[];
+  audienceSegments: AudienceSegment[];
   dataQuality: { lastEventAt?: string; eventCount: number; taggedPages: number; hasConversions: boolean; attributionCoverage: number };
+};
+
+export type AudienceSegment = {
+  source: string;
+  device: DeviceType;
+  sessions: number;
+  outcomes: number;
+  rate: number;
+  topPages: Array<{ name: string; sessions: number }>;
 };
 
 export type AnalyticsTableRow = {
@@ -135,6 +145,20 @@ export type AiMentionSnapshot = {
   }>;
 };
 
+export type RenewalDiagnosis = {
+  analyzedAt: string;
+  level: "現状維持＋改善" | "部分改修" | "全面リニューアル";
+  score: number;
+  summary: string;
+  reasons: Array<{ title: string; evidence: string }>;
+  keep: string[];
+  fix: string[];
+  add: string[];
+  priorityPages: Array<{ page: string; reason: string; priority: "High" | "Medium" | "Low" }>;
+  requirements: Array<{ category: string; items: string[] }>;
+  dataNotes: string[];
+};
+
 export type ConversionRule = {
   id: string;
   name: string;
@@ -152,6 +176,7 @@ export type SiteSettings = {
   clientName?: string;
   memberRoles?: Record<string, "mogcia" | "agency" | "client">;
   strategy?: {
+    siteRoles?: string[];
     audience: string;
     businessType: "BtoB" | "BtoC" | "Both";
     userProblem: string;
@@ -180,6 +205,8 @@ export type SiteSettings = {
   competitorHistory?: CompetitorAnalysisResult[];
   aiMonitorQueries?: string[];
   aiMentionMonitor?: { latest?: AiMentionSnapshot; history?: AiMentionSnapshot[] };
+  renewalDiagnosis?: RenewalDiagnosis;
+  renewalDiagnosisHistory?: RenewalDiagnosis[];
   integrations?: {
     ga4PropertyId?: string;
     searchConsoleProperty?: string;

@@ -7,6 +7,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } fr
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { getCurrentSiteId, getFirebaseServices, isFirebaseConfigured } from "@/lib/firebase/client";
 import { SiteWorkspaceProvider } from "@/lib/site-workspace";
+import { BrandLoader } from "@/components/BrandLoader";
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -55,7 +56,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     } finally { setBusy(false); }
   };
 
-  if (!ready) return <main className="auth-shell"><div className="auth-card"><p>接続を確認しています…</p></div></main>;
+  if (!ready) return <BrandLoader fullPage label="接続を確認しています" />;
   if (!isFirebaseConfigured) return <SiteWorkspaceProvider>{children}</SiteWorkspaceProvider>;
   if (!user) return <main className="auth-shell"><div className="auth-layout">
     <section className="auth-story" aria-label="ismo.について">
@@ -78,6 +79,6 @@ export function AuthGate({ children }: { children: ReactNode }) {
     </form>
   </div></main>;
 
-  if (!siteReady) return <main className="auth-shell"><div className="auth-card"><p>{error || "サイトを準備しています…"}</p></div></main>;
+  if (!siteReady) return <BrandLoader fullPage label={error || "サイトを準備しています"} />;
   return <SiteWorkspaceProvider><button className="global-signout" onClick={() => signOut(getFirebaseServices().auth)}>ログアウト</button>{children}</SiteWorkspaceProvider>;
 }

@@ -291,6 +291,29 @@ export const getOverview = onCall({ region, enforceAppCheck: true }, async reque
     }
     return { source, pages: Array.from(sessionsByPage, ([name, set]) => ({ name, sessions: set.size })).sort((a, b) => b.sessions - a.sessions).slice(0, 5) };
   }).sort((a, b) => (b.pages[0]?.sessions ?? 0) - (a.pages[0]?.sessions ?? 0));
+  const audienceGroups = new Map<string, { source: string; device: DeviceType; sessions: Set<string>; outcomes: number; pages: Map<string, Set<string>> }>();
+  for (const event of events) {
+    const source = event.source || "direct";
+    const device = event.deviceType;
+    const key = `${source}\u0000${device}`;
+    const group = audienceGroups.get(key) ?? { source, device, sessions: new Set<string>(), outcomes: 0, pages: new Map<string, Set<string>>() };
+    group.sessions.add(event.sessionId);
+    if (event.eventName === "conversion" || Boolean(event.conversionId)) group.outcomes += 1;
+    if (event.eventName === "page_view") {
+      const pageSessions = group.pages.get(event.pagePath) ?? new Set<string>();
+      pageSessions.add(event.sessionId);
+      group.pages.set(event.pagePath, pageSessions);
+    }
+    audienceGroups.set(key, group);
+  }
+  const audienceSegments = Array.from(audienceGroups.values()).map(group => ({
+    source: group.source,
+    device: group.device,
+    sessions: group.sessions.size,
+    outcomes: group.outcomes,
+    rate: group.sessions.size ? Number((group.outcomes / group.sessions.size * 100).toFixed(2)) : 0,
+    topPages: Array.from(group.pages, ([name, pageSessions]) => ({ name, sessions: pageSessions.size })).sort((a, b) => b.sessions - a.sessions).slice(0, 3),
+  })).sort((a, b) => b.sessions - a.sessions).slice(0, 8);
   return {
     measuredUsers: sessions.size,
     sessions: sessions.size,
@@ -305,6 +328,7 @@ export const getOverview = onCall({ region, enforceAppCheck: true }, async reque
     conversionGoals: Array.from(conversionGroups, ([name, group]) => ({ name, sessions: group.sessions.size, outcomes: group.outcomes, rate: group.sessions.size ? Number((group.outcomes / group.sessions.size * 100).toFixed(2)) : 0 })).sort((a, b) => b.outcomes - a.outcomes),
     journeys,
     deviceSegments: table(event => event.deviceType),
+    audienceSegments,
     dataQuality: {
       lastEventAt: events.map(event => event.occurredAt).sort().at(-1),
       eventCount: events.length,
@@ -624,6 +648,47 @@ export const analyzeCompetitors = onCall({ region, enforceAppCheck: true, secret
   const result = { analyzedAt: new Date().toISOString(), ...structuredJson(response.output_text) };
   const history = Array.isArray(site.competitorHistory) ? site.competitorHistory.slice(0, 9) : [];
   await db.doc(`sites/${siteId}`).set({ competitorAnalysis: result, competitorHistory: [result, ...history], updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  return result;
+});
+
+export const runRenewalDiagnosis = onCall({ region, enforceAppCheck: true, secrets: [openAiKey], timeoutSeconds: 120, maxInstances: 3 }, async request => {
+  const siteId = requireString(request.data?.siteId, "siteId", 80);
+  const site = await requireSiteAccess(request.auth, siteId);
+  if (site.ownerUid !== request.auth!.uid) throw new HttpsError("permission-denied", "MOGCIA権限が必要です");
+  const events = await loadEvents(siteId, request.data?.range);
+  const pageViews = events.filter(event => event.eventName === "page_view");
+  const sessionIds = new Set(events.map(event => event.sessionId));
+  const conversions = events.filter(event => event.eventName === "conversion" || Boolean(event.conversionId)).length;
+  const topCounts = (keyOf: (event: IncomingEvent) => string) => {
+    const groups = new Map<string, Set<string>>();
+    for (const event of pageViews) { const key = keyOf(event); if (!key) continue; const group = groups.get(key) ?? new Set<string>(); group.add(event.sessionId); groups.set(key, group); }
+    return Array.from(groups, ([name, ids]) => ({ name, sessions: ids.size })).sort((a, b) => b.sessions - a.sessions).slice(0, 10);
+  };
+  const evidence = {
+    sessions: sessionIds.size,
+    conversions,
+    conversionRate: sessionIds.size ? Number((conversions / sessionIds.size * 100).toFixed(2)) : 0,
+    taggedPages: new Set(pageViews.map(event => event.pagePath)).size,
+    topPages: topCounts(event => event.pagePath),
+    topSources: topCounts(event => event.source || "direct"),
+    devices: topCounts(event => event.deviceType),
+    hasBehaviorData: events.length > 0,
+  };
+  const client = new OpenAI({ apiKey: openAiKey.value() });
+  const response = await client.responses.create({ model: openAiModel, reasoning: { effort: "low" }, text: { format: { type: "json_object" }, verbosity: "low" }, max_output_tokens: 4000, input: [
+    { role: "system", content: "あなたはWebサイトのリニューアル診断者です。提供された事実だけを根拠に、現状維持＋改善・部分改修・全面リニューアルのいずれかを判定します。デザインが古いという推測だけで全面リニューアルを勧めてはいけません。実測データがない判断はdataNotesに不足として明記し、事実と提案を混同せず、日本語のJSONだけを返してください。" },
+    { role: "user", content: `Site: ${JSON.stringify({ name: site.name, domain: site.domain, siteType: site.siteType })}\nPurpose and target: ${JSON.stringify(site.strategy ?? {})}\nSite analysis: ${JSON.stringify(site.siteAnalysis ?? null)}\nCompetitor analysis: ${JSON.stringify(site.competitorAnalysis ?? null)}\nMeasured evidence (last 30 days): ${JSON.stringify(evidence)}\nJSON schema: {"level":"現状維持＋改善|部分改修|全面リニューアル","score":0-100,"summary":"string","reasons":[{"title":"string","evidence":"string"}],"keep":["string"],"fix":["string"],"add":["string"],"priorityPages":[{"page":"string","reason":"string","priority":"High|Medium|Low"}],"requirements":[{"category":"string","items":["string"]}],"dataNotes":["string"]}` },
+  ] });
+  if (!response.output_text.trim()) throw new HttpsError("internal", "診断結果を生成できませんでした");
+  const parsed = structuredJson(response.output_text) as Record<string, unknown>;
+  const allowedLevels = ["現状維持＋改善", "部分改修", "全面リニューアル"];
+  const stringList = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").slice(0, 12) : [];
+  const reasons = Array.isArray(parsed.reasons) ? parsed.reasons.flatMap(item => { if (!item || typeof item !== "object") return []; const row = item as Record<string, unknown>; return typeof row.title === "string" && typeof row.evidence === "string" ? [{ title: row.title, evidence: row.evidence }] : []; }).slice(0, 6) : [];
+  const priorityPages = Array.isArray(parsed.priorityPages) ? parsed.priorityPages.flatMap(item => { if (!item || typeof item !== "object") return []; const row = item as Record<string, unknown>; const priority = ["High", "Medium", "Low"].includes(String(row.priority)) ? String(row.priority) : "Medium"; return typeof row.page === "string" && typeof row.reason === "string" ? [{ page: row.page, reason: row.reason, priority }] : []; }).slice(0, 10) : [];
+  const requirements = Array.isArray(parsed.requirements) ? parsed.requirements.flatMap(item => { if (!item || typeof item !== "object") return []; const row = item as Record<string, unknown>; return typeof row.category === "string" ? [{ category: row.category, items: stringList(row.items) }] : []; }).slice(0, 8) : [];
+  const result = { analyzedAt: new Date().toISOString(), level: allowedLevels.includes(String(parsed.level)) ? String(parsed.level) : "部分改修", score: Math.max(0, Math.min(100, Number(parsed.score) || 0)), summary: typeof parsed.summary === "string" ? parsed.summary : "診断結果を確認してください。", reasons, keep: stringList(parsed.keep), fix: stringList(parsed.fix), add: stringList(parsed.add), priorityPages, requirements, dataNotes: stringList(parsed.dataNotes) };
+  const history = Array.isArray(site.renewalDiagnosisHistory) ? site.renewalDiagnosisHistory.slice(0, 9) : [];
+  await db.doc(`sites/${siteId}`).set({ renewalDiagnosis: result, renewalDiagnosisHistory: [result, ...history], updatedAt: FieldValue.serverTimestamp() }, { merge: true });
   return result;
 });
 

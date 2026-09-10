@@ -5,6 +5,7 @@ import { ArrowRight, CheckCircle, MagnifyingGlass, Sparkle, WarningCircle } from
 import { analyticsProvider, type AiMentionSnapshot, type GooglePerformance, type SiteSettings } from "@/lib/analytics";
 import { getLast30DaysRange } from "@/lib/date-range";
 import { useSiteWorkspace } from "@/lib/site-workspace";
+import { BrandLoader } from "@/components/BrandLoader";
 
 type Tab = "検索パフォーマンス" | "SEO・AI診断" | "改善リスト";
 type AuditItem = { category: "技術" | "コンテンツ" | "AI検索"; label: string; ok: boolean; detail: string };
@@ -50,7 +51,7 @@ export function SeoAiScreen() {
     ];
   }, [settings]);
 
-  if (loading || !settings) return <div className="settings-loading"><i /><span>SEO・AIデータを読み込み中</span></div>;
+  if (loading || !settings) return <BrandLoader label="SEO・AIデータを読み込んでいます" />;
   const searchRows = performance?.searchConsole?.rows ?? [];
   const score = Math.round(audit.filter(item => item.ok).length / audit.length * 100);
   const improvements = Array.from(new Set([...(settings.siteAnalysis?.recommendations ?? []), ...audit.filter(item => !item.ok).map(item => `${item.label}を改善する`)]));

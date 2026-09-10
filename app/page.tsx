@@ -5,6 +5,9 @@ import Image from "next/image";
 import { HeatmapOverlay } from "@/components/HeatmapOverlay";
 import { SettingsScreen } from "@/components/SettingsScreen";
 import { SeoAiScreen } from "@/components/SeoAiScreen";
+import { AudienceInsightsScreen } from "@/components/AudienceInsightsScreen";
+import { BrandLoader } from "@/components/BrandLoader";
+import { RenewalDiagnosisScreen } from "@/components/RenewalDiagnosisScreen";
 import { AuthGate } from "@/components/AuthGate";
 import { AgencyOverviewScreen, ClientViewScreen, CompetitorsScreen, ImproveScreen, PerformanceDetailScreen, SiteAnalysisScreen, StrategyScreen } from "@/components/ProductScreens";
 import { analyticsProvider, type AnalyticsTableRow, type OverviewSnapshot } from "@/lib/analytics";
@@ -48,16 +51,19 @@ import {
   YAxis,
 } from "recharts";
 
-type Screen = "ホーム" | "サイト戦略" | "サイト分析" | "競合分析" | "SEO・AI検索" | "パフォーマンス" | "改善管理" | "月次レポート" | "Agency" | "導線分析" | "ヒートマップ" | "ページ分析" | "流入分析" | "コンバージョン" | "AI分析" | "サイト設定";
+type Screen = "ホーム" | "目的・ターゲット" | "リニューアル診断" | "サイト分析" | "競合分析" | "オーディエンス分析" | "SEO・AI検索" | "パフォーマンス" | "改善管理" | "月次レポート" | "Agency" | "導線分析" | "ヒートマップ" | "ページ分析" | "流入分析" | "コンバージョン" | "AI分析" | "サイト設定";
 
 const nav: { label: Screen; group: string; icon: React.ElementType }[] = [
   { label: "ホーム", group: "OVERVIEW", icon: CirclesFour },
-  { label: "サイト戦略", group: "PLAN", icon: Target },
+  { label: "目的・ターゲット", group: "PLAN", icon: Target },
+  { label: "リニューアル診断", group: "PLAN", icon: Sparkle },
   { label: "サイト分析", group: "UNDERSTAND", icon: MagnifyingGlass },
   { label: "競合分析", group: "UNDERSTAND", icon: UsersThree },
+  { label: "オーディエンス分析", group: "UNDERSTAND", icon: UserCircle },
   { label: "SEO・AI検索", group: "UNDERSTAND", icon: MagnifyingGlass },
   { label: "パフォーマンス", group: "MEASURE", icon: ChartLineUp },
   { label: "ヒートマップ", group: "MEASURE", icon: MapTrifold },
+  { label: "AI分析", group: "ACT", icon: Brain },
   { label: "改善管理", group: "ACT", icon: Sparkle },
   { label: "月次レポート", group: "SHARE", icon: UserCircle },
 ];
@@ -79,7 +85,7 @@ function Overview({ onNavigate }: { onNavigate: (s: Screen) => void }) {
   const liveSources=snapshot?.sources.slice(0,5)??[];
   return <>
     <div className="page-head">
-      <div><p className="eyebrow">PERFORMANCE OVERVIEW</p><h1>サイトの現在地</h1><p className="sub">数字の変化だけでなく、設計した導線が機能しているかを見ます。</p></div>
+      <div><p className="eyebrow">PERFORMANCE OVERVIEW</p><h1>サイトの今</h1><p className="sub">数字の変化だけでなく、設計した導線が機能しているかを見ます。</p></div>
       <div className="range">直近30日 <CaretDown size={14} /></div>
     </div>
     <section className="kpi-grid">
@@ -125,6 +131,15 @@ function HeatmapScreen() {
     <MeasurementNote />
     <div className="filter-row"><FilterPills items={["クリック", "スクロール", "注目エリア"]} active={mode} setActive={setMode} /><FilterPills items={["PC", "Smartphone", "Tablet"]} active={device} setActive={setDevice} /></div>
     <div className="heat-layout">
+      <section className="panel heat-aside heat-summary">
+        <div className="heat-summary-metrics">
+          <PanelHead title="実測値" note={`${device} / ${mode}`} />
+          <div className="mini-stat"><span>計測サンプル</span><b>{heatmap?.sampleSize.toLocaleString() ?? "—"}</b></div>
+          <div className="mini-stat"><span>50%地点の到達率</span><b>{middleReach}%</b></div>
+        </div>
+        <div className="heat-insight"><Sparkle weight="fill" /><p><b>実サイトに計測データを重ねて表示</b><br />ページの先頭から末尾まで一続きで表示します。点と背景は一緒に移動し、リンクの誤操作は起きません。</p></div>
+        <div className="heat-legend"><span><i className="hot" />クリック位置</span><span><i className="warm" />中程度</span><span><i className="cold" />少ない</span></div>
+      </section>
       <section className="panel heat-preview">
         <div className="browser-bar"><i /><i /><i /><span>{selectedSite.domain || "URL未設定"}</span><em>SCROLL PREVIEW</em></div>
         <div className={`site-preview ${device.toLowerCase()}`}>
@@ -134,26 +149,40 @@ function HeatmapScreen() {
           </div>
         </div>
       </section>
-      <aside className="panel heat-aside">
-        <PanelHead title="実測値" note={`${device} / ${mode}`} />
-        <div className="mini-stat"><span>計測サンプル</span><b>{heatmap?.sampleSize.toLocaleString() ?? "—"}</b></div>
-        <div className="mini-stat"><span>50%地点の到達率</span><b>{middleReach}%</b></div>
-        <div className="heat-insight"><Sparkle weight="fill" /><p><b>実サイトに計測データを重ねて表示</b><br />ページの先頭から末尾まで一続きで表示します。点と背景は一緒に移動し、リンクの誤操作は起きません。</p></div>
-        <div className="heat-legend"><span><i className="hot" />クリック位置</span><span><i className="warm" />中程度</span><span><i className="cold" />少ない</span></div>
-      </aside>
     </div>
   </>;
 }
 
 const aiAnswers:Record<string,string>={
   "どこを改善すべき？":"優先度が最も高いのは、スマートフォン版の料金ページです。到達ユーザーの62%がCTAを押さずに離脱しています。料金表直下に「相談して決める」CTAと導入事例を追加すると、検討時の不安を減らせます。",
-  "Instagram流入だけ分析":"UTM・参照元でInstagram経由と判定できたセッションは前月比28%増ですが、TOPからサービス詳細への到達は18%です。Instagram内の個人行動ではなく、サイト流入後の計測傾向です。実績・料金・相談ボタンをファーストビュー近くに置くのが有効です。",
+  "SNS流入だけ分析":"UTM・参照元で判定できたSNS経由のセッションについて、媒体・投稿・利用端末・閲覧ページ・成果率を比較します。SNS内の個人行動ではなく、サイト流入後の計測傾向です。",
   "CVが減った原因は？":"CV低下の主因はスマートフォンです。PCと比べCVRが38%低く、特に料金ページから問い合わせへの遷移で差が開いています。表示速度ではなくCTAの視認性と情報順序が主要因と見ています。",
   "採用ユーザーを分析":"求人媒体からの流入は921セッション、応募CVRは8.4%です。社員紹介を閲覧したユーザーの応募率が高いため、募集要項より前に働く人・一日の流れを提示すると改善が見込めます。",
-  "来月やることを教えて":"来月は①料金ページのスマホCTA改善、②Instagram向けファーストビューの実績導線追加、③採用ページで社員紹介の配置変更、の順で実施し、2週間ごとに到達率とCVRを比較してください。"
+  "来月やることを教えて":"来月は①料金ページのスマホCTA改善、②主要SNS流入向けファーストビューの実績導線追加、③採用ページで社員紹介の配置変更、の順で実施し、2週間ごとに到達率とCVRを比較してください。"
 };
 
-function AiScreen(){const [question,setQuestion]=useState("今月の問題点は？"); const [answer,setAnswer]=useState("質問候補を選ぶか、下の入力欄から分析したい内容を送ってください。"); const [draft,setDraft]=useState(""); const [loading,setLoading]=useState(false); const ask=async(q:string)=>{if(!q.trim()||loading)return;setQuestion(q);setLoading(true);setAnswer("分析中…");try{const result=await analyticsProvider.getAiInsight(getCurrentSiteId(),getLast30DaysRange(),q);setAnswer(result.answer)}catch(error){setAnswer(error instanceof Error&&error.message.includes("resource-exhausted")?"本日のAI分析上限（20回）に達しました。明日また利用できます。":"分析を実行できませんでした。少し時間をおいて、もう一度お試しください。")}finally{setLoading(false)}}; return <><PageTitle eyebrow="AI WEB ANALYST" title="データに、次の一手を聞く。" sub="いま起きていることを、やさしく、わかりやすく読み解きます。"/><div className="ai-layout"><section className="chat"><div className="message user"><span>YOU</span><p>{question}</p></div><div className="message assistant"><div className="bot"><Sparkle weight="fill"/> ismo<span className="brand-dot">.</span> AI</div><p>{answer}</p></div><form className="composer" onSubmit={e=>{e.preventDefault();const q=draft;setDraft("");void ask(q)}}><input value={draft} onChange={e=>setDraft(e.target.value)} placeholder="サイトについて質問する..."/><button aria-label="AIへ送信" disabled={loading||!draft.trim()}><PaperPlaneTilt weight="fill"/></button></form></section><aside className="ai-side"><h3>質問してみる</h3><div className="prompts">{Object.keys(aiAnswers).map(q=><button disabled={loading} key={q} onClick={()=>void ask(q)}><span>{q}</span><ArrowUpRight/></button>)}</div><div className="scope"><Brain size={26}/><div><b>分析対象</b><p>認証済みサイトの直近30日<br/>集計値のみAIへ送信<br/>1ユーザー1日20回まで</p></div></div></aside></div></>}
+function AiScreen() {
+  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; text: string }>>([{ role: "assistant", text: "サイトの数字について、気になることを聞いてください。実測データをもとに一緒に整理します。" }]);
+  const [draft, setDraft] = useState("");
+  const [loading, setLoading] = useState(false);
+  const ask = async (value: string) => {
+    const question = value.trim();
+    if (!question || loading) return;
+    setMessages(current => [...current, { role: "user", text: question }]);
+    setDraft("");
+    setLoading(true);
+    try {
+      const result = await analyticsProvider.getAiInsight(getCurrentSiteId(), getLast30DaysRange(), question);
+      setMessages(current => [...current, { role: "assistant", text: result.answer }]);
+    } catch (error) {
+      const text = error instanceof Error && error.message.includes("resource-exhausted") ? "本日のAI分析上限（20回）に達しました。明日また利用できます。" : "分析を実行できませんでした。少し時間をおいて、もう一度お試しください。";
+      setMessages(current => [...current, { role: "assistant", text }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  return <><PageTitle eyebrow="AI WEB ANALYST" title="数字の理由を、AIと読み解く。" sub="サイトで起きていることを整理し、改善につながる気づきを見つけます。"/><div className="ai-layout"><section className="chat"><div className="chat-thread" aria-live="polite">{messages.map((message, index) => message.role === "user" ? <div className="message user" key={`${message.role}-${index}`}><span>YOU</span><p>{message.text}</p></div> : <div className="message assistant" key={`${message.role}-${index}`}><div className="ai-avatar"><Image src="/ismo-symbol.png" width={30} height={30} alt="ismo AI"/></div><div><div className="bot">ismo<span className="brand-dot">.</span> AI</div><p>{message.text}</p></div></div>)}{loading && <div className="message assistant"><div className="ai-avatar"><Image src="/ismo-symbol.png" width={30} height={30} alt=""/></div><div><div className="bot">ismo<span className="brand-dot">.</span> AI</div><p className="typing">分析しています<span>•••</span></p></div></div>}</div><form className="composer" onSubmit={event => { event.preventDefault(); void ask(draft); }}><input value={draft} onChange={event => setDraft(event.target.value)} placeholder="サイトについて質問する..."/><button aria-label="AIへ送信" disabled={loading || !draft.trim()}><PaperPlaneTilt weight="fill"/></button></form></section><aside className="ai-side"><h3>質問してみる</h3><div className="prompts">{Object.keys(aiAnswers).map(question => <button disabled={loading} key={question} onClick={() => void ask(question)}><span>{question}</span><ArrowUpRight/></button>)}</div><div className="scope"><Brain size={26}/><div><b>分析対象</b><p>認証済みサイトの直近30日<br/>集計値のみAIへ送信<br/>1ユーザー1日20回まで</p></div></div></aside></div></>;
+}
 
 function SimpleScreen({screen}:{screen:Screen}) { const [snapshot,setSnapshot]=useState<OverviewSnapshot|null>(null); useEffect(()=>{analyticsProvider.getOverview(getCurrentSiteId(),getLast30DaysRange()).then(setSnapshot).catch(()=>setSnapshot(null))},[screen]); const meta:Record<string,[string,string]>={"ページ分析":["PAGE PERFORMANCE","ページ分析"],"流入分析":["ACQUISITION","流入分析"],"コンバージョン":["CONVERSION","コンバージョン"]}; const [eye,title]=meta[screen]; const rows:AnalyticsTableRow[]=screen==="ページ分析"?(snapshot?.pages??[]):screen==="流入分析"?(snapshot?.sources??[]):(snapshot?.conversionGoals??[]); return <><PageTitle eyebrow={eye} title={title} sub="直近30日の実測データを表示しています。"/><section className="panel data-table"><div className="table-head"><span>{screen==="ページ分析"?"ページ":screen==="流入分析"?"流入元":"ゴール"}</span><span>セッション</span><span>CV</span><span>成果率</span><span>状態</span></div>{rows.length?rows.map(row=><div className="table-row" key={row.name}><b>{row.name}</b><span>{row.sessions.toLocaleString()}</span><span>{row.outcomes.toLocaleString()}</span><span>{row.rate}%</span><span className="status">実測</span></div>):<EmptyState/>}</section></> }
 
@@ -163,14 +192,17 @@ function PageTitle({eyebrow,title,sub}:{eyebrow:string;title:string;sub:string})
 function FilterPills({items,active,setActive}:{items:string[];active:string;setActive:(x:string)=>void}){return <div className="pills">{items.map(i=><button key={i} className={active===i?"active":""} onClick={()=>setActive(i)}>{i}</button>)}</div>}
 
 function PerformanceScreen() {
-  const [tab, setTab] = useState("流入・ユーザー");
-  const tabs = ["流入・ユーザー", "ページ・導線", "コンバージョン", "計測状態"];
   return <>
-    <div className="performance-tabs">{tabs.map(item => <button className={tab === item ? "active" : ""} key={item} onClick={() => setTab(item)}>{item}</button>)}</div>
-    {tab === "流入・ユーザー" && <div className="performance-stack"><SimpleScreen screen="流入分析" /><PerformanceDetailScreen view="Segments" /></div>}
-    {tab === "ページ・導線" && <div className="performance-stack"><SimpleScreen screen="ページ分析" /><FlowScreen /><PerformanceDetailScreen view="Funnel" /></div>}
-    {tab === "コンバージョン" && <SimpleScreen screen="コンバージョン" />}
-    {tab === "計測状態" && <PerformanceDetailScreen view="Data Quality" />}
+    <PageTitle eyebrow="MEASURE" title="Performance" sub="流入から成果、計測状態までを一つの画面で確認します。" />
+    <div className="performance-board">
+      <section className="performance-block"><SimpleScreen screen="流入分析" /></section>
+      <section className="performance-block"><PerformanceDetailScreen view="Segments" /></section>
+      <section className="performance-block"><SimpleScreen screen="ページ分析" /></section>
+      <section className="performance-block"><SimpleScreen screen="コンバージョン" /></section>
+      <section className="performance-block performance-wide"><FlowScreen /></section>
+      <section className="performance-block"><PerformanceDetailScreen view="Funnel" /></section>
+      <section className="performance-block performance-quality"><PerformanceDetailScreen view="Data Quality" /></section>
+    </div>
   </>;
 }
 
@@ -226,12 +258,15 @@ function SiteSwitcher({ onAgency }: { onAgency: () => void }) {
 
 function Dashboard() {
   const [screen, setScreen] = useState<Screen>("ホーム");
+  const [booting, setBooting] = useState(true);
   const { selectedSiteId } = useSiteWorkspace();
   const title = useMemo(() => screen, [screen]);
+  useEffect(() => { const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches; const timer = window.setTimeout(() => setBooting(false), reducedMotion ? 120 : 950); return () => window.clearTimeout(timer); }, []);
 
   return <main className={screen === "月次レポート" ? "client-view-mode" : ""}>
+    {booting && <BrandLoader fullPage label="サイトの状態を読み解いています" />}
     <aside className="sidebar">
-      <div className="logo"><Image src="/ismo-symbol.png" width={34} height={34} alt="" priority /><div><b>ismo<span className="brand-dot">.</span></b><small>WEB ANALYTICS</small></div></div>
+      <button className="logo logo-button" type="button" aria-label="ダッシュボードへ戻る" onClick={() => setScreen("ホーム")}><Image src="/ismo-symbol.png" width={34} height={34} alt="" priority /><div><b>ismo<span className="brand-dot">.</span></b><small>WEB ANALYTICS</small></div></button>
       <SiteSwitcher onAgency={() => setScreen("Agency")} />
       <nav>{navGroups.map(group => <div className="nav-group" key={group}><span>{group}</span>{nav.filter(item => item.group === group).map(({ label, icon: Icon }) => <button key={label} className={screen === label ? "active" : ""} onClick={() => setScreen(label)}><Icon size={19} weight={screen === label ? "fill" : "regular"} />{label}</button>)}</div>)}</nav>
       <div className="sidebar-bottom"><button className={screen === "サイト設定" ? "active" : ""} onClick={() => setScreen("サイト設定")}><Gear />サイト設定</button><div className="profile"><div>MK</div><span><b>MOGCIA Inc.</b><small>Admin</small></span><CaretDown /></div></div>
@@ -240,9 +275,11 @@ function Dashboard() {
       <header className="topbar"><div className="crumb"><span>ismo<span className="brand-dot">.</span> ANALYTICS</span><ArrowRight />{title}</div><div className="top-actions">{screen === "月次レポート" ? <button className="back-admin" onClick={() => setScreen("ホーム")}><ArrowRight />管理画面へ戻る</button> : <div className="status"><i />データ連携中</div>}</div></header>
       <div className="content" key={`${selectedSiteId}-${screen}`}>
         {screen === "ホーム" && <Overview onNavigate={setScreen} />}
-        {screen === "サイト戦略" && <StrategyScreen />}
+        {screen === "目的・ターゲット" && <StrategyScreen />}
+        {screen === "リニューアル診断" && <RenewalDiagnosisScreen />}
         {screen === "サイト分析" && <SiteAnalysisScreen />}
         {screen === "競合分析" && <CompetitorsScreen />}
+        {screen === "オーディエンス分析" && <AudienceInsightsScreen />}
         {screen === "SEO・AI検索" && <SeoAiScreen />}
         {screen === "パフォーマンス" && <PerformanceScreen />}
         {screen === "ヒートマップ" && <HeatmapScreen />}
