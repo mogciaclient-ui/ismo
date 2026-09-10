@@ -156,28 +156,14 @@ button:active { transform: translateY(1px); }
 
 .site-preview {
   position: relative;
-  height: 520px;
-  overflow-x: hidden;
-  overflow-y: auto;
+  min-height: 900px;
+  overflow: hidden;
   background: #f7f7f8;
-  scrollbar-color: #ff8fa3 #ececf0;
-  scrollbar-width: thin;
-  overscroll-behavior: contain;
-  touch-action: pan-y;
-  -webkit-overflow-scrolling: touch;
 }
 
 .site-preview-canvas { position: relative; min-height: 100%; }
 .site-preview .heat-state { pointer-events: none; }
 .heat-preview { position: relative; }
-.heat-preview::after { position: absolute; right: 13px; bottom: 13px; left: 13px; z-index: 4; height: 64px; background: linear-gradient(transparent, #17181c24); content: ""; pointer-events: none; }
-.heat-scroll-hint { position: absolute; bottom: 26px; left: 50%; z-index: 5; display: flex; align-items: center; gap: 7px; padding: 7px 11px; border: 1px solid #ffffff35; border-radius: 999px; color: #fff; background: #17181cdb; box-shadow: 0 6px 20px #17181c35; font-size: 8px; letter-spacing: .05em; pointer-events: none; transform: translateX(-50%); }
-.heat-scroll-hint svg { width: 11px; height: 11px; color: var(--pink); animation: heat-scroll-arrow 1.5s ease-in-out infinite; }
-
-@keyframes heat-scroll-arrow {
-  0%, 100% { transform: translateY(-1px); }
-  50% { transform: translateY(3px); }
-}
 
 .site-preview.smartphone {
   max-width: 390px;
@@ -485,9 +471,7 @@ button:active { transform: translateY(1px); }
 .client-grid article span { color: #8c8f97; font-size: 8px; letter-spacing: .14em; }
 .client-grid article.insight span { color: var(--pink); }
 .client-grid h3 { margin: 15px 0 0; font-size: 13px; line-height: 1.6; }
-.client-view-mode .sidebar { display: none; }
-.client-view-mode .workspace { margin-left: 0; }
-.client-view-mode .content { max-width: 1060px; }
+.client-view-mode .content { max-width: 1440px; }
 .back-admin { display: flex !important; width: auto !important; gap: 7px; padding: 0 11px; border: 1px solid var(--line) !important; color: var(--ink) !important; background: #fff !important; font-size: 9px; }
 .back-admin svg { width: 12px; transform: rotate(180deg); }
 .agency-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 14px; }

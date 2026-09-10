@@ -11,7 +11,6 @@ import { getLast30DaysRange } from "@/lib/date-range";
 import { getCurrentSiteId } from "@/lib/firebase/client";
 import { type SiteType, useSiteWorkspace } from "@/lib/site-workspace";
 import {
-  ArrowDown,
   ArrowRight,
   ArrowUpRight,
   Bell,
@@ -114,8 +113,7 @@ function HeatmapScreen() {
   const [heatmap, setHeatmap] = useState<import("@/lib/analytics").HeatmapSnapshot | null>(null);
   const handleData = useMemo(() => setHeatmap, []);
   const middleReach = heatmap?.scrollReach.find(row => row.depth === 50)?.percentage ?? 0;
-  const fallbackHeight = device === "PC" ? 6000 : 9000;
-  const measuredHeight = heatmap?.pageHeight && heatmap.pageHeight > 520 ? heatmap.pageHeight : fallbackHeight;
+  const measuredHeight = heatmap?.pageHeight && heatmap.pageHeight > 520 ? heatmap.pageHeight : 900;
   const previewHeight = Math.min(measuredHeight, 12000);
   const previewUrl = `https://${selectedSite.domain || "www.mogcia.net"}`;
 
@@ -132,13 +130,12 @@ function HeatmapScreen() {
             <HeatmapOverlay device={device} mode={mode} onData={handleData} />
           </div>
         </div>
-        <div className="heat-scroll-hint" aria-hidden="true"><span>この画面内をスクロール</span><ArrowDown /></div>
       </section>
       <aside className="panel heat-aside">
         <PanelHead title="実測値" note={`${device} / ${mode}`} />
         <div className="mini-stat"><span>計測サンプル</span><b>{heatmap?.sampleSize.toLocaleString() ?? "—"}</b></div>
         <div className="mini-stat"><span>50%地点の到達率</span><b>{middleReach}%</b></div>
-        <div className="heat-insight"><Sparkle weight="fill" /><p><b>実サイトに計測データを重ねて表示</b><br />プレビュー内を縦にスクロールできます。点と背景は一緒に移動し、リンクの誤操作は起きません。</p></div>
+        <div className="heat-insight"><Sparkle weight="fill" /><p><b>実サイトに計測データを重ねて表示</b><br />ページの先頭から末尾まで一続きで表示します。点と背景は一緒に移動し、リンクの誤操作は起きません。</p></div>
         <div className="heat-legend"><span><i className="hot" />クリック位置</span><span><i className="warm" />中程度</span><span><i className="cold" />少ない</span></div>
       </aside>
     </div>
