@@ -123,6 +123,18 @@ export type GooglePerformance = {
   searchConsole: { property: string; rows: Array<{ query: string; clicks: number; impressions: number; ctr: number; position: number }> } | null;
 };
 
+export type AiMentionSnapshot = {
+  checkedAt: string;
+  mentionRate: number;
+  queries: Array<{
+    query: string;
+    mentioned: boolean;
+    answer: string;
+    competitors: string[];
+    sources: Array<{ title: string; url: string; isOwnSite: boolean }>;
+  }>;
+};
+
 export type ConversionRule = {
   id: string;
   name: string;
@@ -166,6 +178,8 @@ export type SiteSettings = {
   competitorAnalysis?: CompetitorAnalysisResult;
   analysisHistory?: SiteAnalysisResult[];
   competitorHistory?: CompetitorAnalysisResult[];
+  aiMonitorQueries?: string[];
+  aiMentionMonitor?: { latest?: AiMentionSnapshot; history?: AiMentionSnapshot[] };
   integrations?: {
     ga4PropertyId?: string;
     searchConsoleProperty?: string;

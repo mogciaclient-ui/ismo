@@ -2,7 +2,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { getFirebaseServices } from "@/lib/firebase/client";
 import type { AnalyticsProvider } from "./provider";
-import type { CompetitorAnalysisResult, GoogleIntegrationStatus, GooglePerformance, GoogleResources, HeatmapSnapshot, OverviewSnapshot, SiteAnalysisResult, SiteMember, SiteSettings } from "./types";
+import type { AiMentionSnapshot, CompetitorAnalysisResult, GoogleIntegrationStatus, GooglePerformance, GoogleResources, HeatmapSnapshot, OverviewSnapshot, SiteAnalysisResult, SiteMember, SiteSettings } from "./types";
 
 export const firebaseAnalyticsProvider: AnalyticsProvider = {
   async getOverview(siteId, range) {
@@ -78,5 +78,9 @@ export const firebaseAnalyticsProvider: AnalyticsProvider = {
   async disconnectGoogleIntegration(siteId) {
     const { functions } = getFirebaseServices();
     await httpsCallable(functions, "disconnectGoogleIntegration")({ siteId });
+  },
+  async runAiMentionMonitor(siteId, queries) {
+    const { functions } = getFirebaseServices();
+    return (await httpsCallable<{ siteId: string; queries: string[] }, AiMentionSnapshot>(functions, "runAiMentionMonitor")({ siteId, queries })).data;
   },
 };

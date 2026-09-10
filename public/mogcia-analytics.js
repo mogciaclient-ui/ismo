@@ -9,6 +9,8 @@
     endpoint: script.dataset.endpoint || "/api/collect",
     consentMode: script.dataset.consentMode || "required",
     privacyUrl: script.dataset.privacyUrl || "",
+    brandUrl: script.dataset.brandUrl || "https://www.ismo-data.com/",
+    brandLogo: script.dataset.brandLogo || new URL("/ismo-symbol.png", script.src).toString(),
     debug: script.dataset.debug === "true",
   };
   if (!config.siteId) return;
@@ -154,21 +156,39 @@
     host.setAttribute("aria-label", "アクセス解析の設定");
     host.style.cssText = "position:fixed;z-index:2147483647;left:16px;right:16px;bottom:16px;display:flex;justify-content:center;pointer-events:none";
     var panel = document.createElement("div");
-    panel.style.cssText = "box-sizing:border-box;display:flex;align-items:center;gap:20px;width:min(720px,100%);padding:18px 20px;border:1px solid #dedcd4;border-radius:14px;background:#fff;color:#242422;box-shadow:0 16px 50px rgba(0,0,0,.16);font:13px/1.7 -apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans-serif;pointer-events:auto";
+    panel.style.cssText = "box-sizing:border-box;display:flex;align-items:center;gap:22px;width:min(760px,100%);padding:20px 22px;border:1px solid #ffd5dd;border-radius:16px;background:#fff;color:#24242a;box-shadow:0 18px 55px rgba(35,35,42,.18);font:13px/1.7 -apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans-serif;pointer-events:auto";
     var copy = document.createElement("div");
     copy.style.cssText = "flex:1;min-width:0";
+    var brand = document.createElement("a");
+    brand.href = config.brandUrl;
+    brand.target = "_blank";
+    brand.rel = "noopener noreferrer";
+    brand.setAttribute("aria-label", "ismo.とは");
+    brand.style.cssText = "display:inline-flex;align-items:center;gap:7px;margin-bottom:7px;color:#74747d;font-size:9px;font-weight:700;letter-spacing:.08em;text-decoration:none";
+    var mark = document.createElement("img");
+    mark.src = config.brandLogo;
+    mark.alt = "";
+    mark.width = 20;
+    mark.height = 20;
+    mark.style.cssText = "display:block;width:20px;height:20px;object-fit:contain";
+    var brandText = document.createElement("span");
+    brandText.textContent = "POWERED BY ismo.";
+    brand.appendChild(mark);
+    brand.appendChild(brandText);
     var title = document.createElement("strong");
     title.textContent = "アクセス解析について";
-    title.style.cssText = "display:block;margin-bottom:3px;font-size:14px";
+    title.style.cssText = "display:block;margin-bottom:4px;font-size:15px;letter-spacing:-.02em";
     var description = document.createElement("span");
-    description.textContent = "サイト改善のため、個人を特定しない形で閲覧状況を計測します。";
+    description.textContent = "このサイトでは、より良い体験づくりのため、個人を特定しない形で閲覧状況を計測します。";
+    description.style.cssText = "color:#66666f;font-size:12px";
+    copy.appendChild(brand);
     copy.appendChild(title);
     copy.appendChild(description);
     if (config.privacyUrl) {
       var privacy = document.createElement("a");
       privacy.href = config.privacyUrl;
-      privacy.textContent = " 詳細を見る";
-      privacy.style.cssText = "color:#4d681d;text-decoration:underline;white-space:nowrap";
+      privacy.textContent = " プライバシーの詳細";
+      privacy.style.cssText = "color:#bd3f58;font-size:11px;text-decoration:underline;text-underline-offset:2px;white-space:nowrap";
       copy.appendChild(privacy);
     }
     var actions = document.createElement("div");
@@ -177,13 +197,13 @@
     deny.type = "button";
     deny.textContent = "拒否する";
     deny.setAttribute("data-mogcia-consent", "deny");
-    deny.style.cssText = "padding:10px 14px;border:1px solid #d8d6ce;border-radius:8px;background:#fff;color:#555;font:inherit;cursor:pointer";
+    deny.style.cssText = "padding:10px 14px;border:1px solid #dedee3;border-radius:9px;background:#fff;color:#66666f;font:inherit;font-size:12px;cursor:pointer";
     deny.addEventListener("click", function () { consent(false); });
     var accept = document.createElement("button");
     accept.type = "button";
     accept.textContent = "許可する";
     accept.setAttribute("data-mogcia-consent", "accept");
-    accept.style.cssText = "padding:10px 16px;border:1px solid #242422;border-radius:8px;background:#242422;color:#fff;font:inherit;font-weight:700;cursor:pointer";
+    accept.style.cssText = "padding:10px 17px;border:1px solid #29292f;border-radius:9px;background:#29292f;color:#fff;font:inherit;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 6px 16px rgba(35,35,42,.15)";
     accept.addEventListener("click", function () { consent(true); });
     actions.appendChild(deny);
     actions.appendChild(accept);
@@ -204,7 +224,7 @@
   addEventListener("scroll", onScroll, { passive: true });
   addEventListener("popstate", routeChanged);
   addEventListener("pagehide", function () { trackEngagement(); flush(); });
-  window.MogciaAnalytics = { track: track, flush: flush, consent: consent, showConsent: function () { showConsent(true); }, version: "1.2.1" };
+  window.MogciaAnalytics = { track: track, flush: flush, consent: consent, showConsent: function () { showConsent(true); }, version: "1.3.0" };
   track("page_view");
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { showConsent(false); }, { once: true });
   else showConsent(false);

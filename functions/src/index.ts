@@ -627,6 +627,54 @@ export const analyzeCompetitors = onCall({ region, enforceAppCheck: true, secret
   return result;
 });
 
+export const runAiMentionMonitor = onCall({ region, enforceAppCheck: true, secrets: [openAiKey], timeoutSeconds: 120, maxInstances: 3 }, async request => {
+  const siteId = requireString(request.data?.siteId, "siteId", 80);
+  const site = await requireSiteAccess(request.auth, siteId);
+  if (site.ownerUid !== request.auth!.uid) throw new HttpsError("permission-denied", "MOGCIA権限が必要です");
+  if (!Array.isArray(request.data?.queries)) throw new HttpsError("invalid-argument", "調査する質問を入力してください");
+  const queries = Array.from(new Set(request.data.queries.map((value: unknown) => requireString(value, "query", 200)).filter(Boolean))).slice(0, 3);
+  if (!queries.length) throw new HttpsError("invalid-argument", "調査する質問を1件以上入力してください");
+
+  const ownHost = (await publicSiteUrl(requireString(site.domain, "domain", 500))).hostname.replace(/^www\./, "").toLowerCase();
+  const ownNames = [site.name, site.clientName].filter((value): value is string => typeof value === "string" && value.trim().length >= 3).map(value => value.toLowerCase());
+  const competitorNames = (Array.isArray(site.competitors) ? site.competitors : []).map((item: Record<string, unknown>) => String(item.name ?? "").trim()).filter(Boolean).slice(0, 5);
+  const client = new OpenAI({ apiKey: openAiKey.value() });
+
+  const results = await Promise.all(queries.map(async query => {
+    const response = await client.responses.create({
+      model: "gpt-5.5",
+      reasoning: { effort: "low" },
+      tools: [{ type: "web_search", search_context_size: "low", user_location: { type: "approximate", country: "JP", timezone: "Asia/Tokyo" } }],
+      max_output_tokens: 900,
+      input: `次の質問について、現在の公開Web情報を検索して日本語で簡潔に回答してください。具体的な会社やサービスを挙げる場合は、根拠となるWebページを引用してください。特定の会社を優遇せず、検索結果をそのまま評価してください。\n\n質問: ${query}`,
+    });
+    const answer = response.output_text.trim().slice(0, 6000);
+    const sourceMap = new Map<string, { title: string; url: string; isOwnSite: boolean }>();
+    for (const output of response.output) {
+      if (output.type !== "message") continue;
+      for (const content of output.content) {
+        if (content.type !== "output_text") continue;
+        for (const annotation of content.annotations) {
+          if (annotation.type !== "url_citation") continue;
+          let isOwnSite = false;
+          try { isOwnSite = new URL(annotation.url).hostname.replace(/^www\./, "").toLowerCase() === ownHost; } catch { /* malformed provider URL */ }
+          sourceMap.set(annotation.url, { title: annotation.title, url: annotation.url, isOwnSite });
+        }
+      }
+    }
+    const normalizedAnswer = answer.toLowerCase();
+    const sources = Array.from(sourceMap.values()).slice(0, 8);
+    const mentioned = sources.some(source => source.isOwnSite) || normalizedAnswer.includes(ownHost) || ownNames.some(name => normalizedAnswer.includes(name));
+    const competitors = competitorNames.filter(name => normalizedAnswer.includes(name.toLowerCase()));
+    return { query, mentioned, answer, competitors, sources };
+  }));
+
+  const snapshot = { checkedAt: new Date().toISOString(), mentionRate: Math.round(results.filter(item => item.mentioned).length / results.length * 100), queries: results };
+  const history = Array.isArray(site.aiMentionMonitor?.history) ? site.aiMentionMonitor.history.slice(0, 11) : [];
+  await db.doc(`sites/${siteId}`).set({ aiMonitorQueries: queries, aiMentionMonitor: { latest: snapshot, history: [snapshot, ...history] }, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  return snapshot;
+});
+
 export const getAiInsight = onCall({ region, enforceAppCheck: true, secrets: [openAiKey], timeoutSeconds: 60, maxInstances: 10 }, async request => {
   const siteId = requireString(request.data?.siteId, "siteId", 80);
   const question = requireString(request.data?.question, "question", 500);

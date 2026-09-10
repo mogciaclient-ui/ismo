@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { HeatmapOverlay } from "@/components/HeatmapOverlay";
 import { SettingsScreen } from "@/components/SettingsScreen";
+import { SeoAiScreen } from "@/components/SeoAiScreen";
 import { AuthGate } from "@/components/AuthGate";
 import { AgencyOverviewScreen, ClientViewScreen, CompetitorsScreen, ImproveScreen, PerformanceDetailScreen, SiteAnalysisScreen, StrategyScreen } from "@/components/ProductScreens";
 import { analyticsProvider, type AnalyticsTableRow, type OverviewSnapshot } from "@/lib/analytics";
@@ -47,14 +48,16 @@ import {
   YAxis,
 } from "recharts";
 
-type Screen = "ホーム" | "サイト戦略" | "サイト分析" | "競合分析" | "パフォーマンス" | "改善管理" | "月次レポート" | "Agency" | "導線分析" | "ヒートマップ" | "ページ分析" | "流入分析" | "コンバージョン" | "AI分析" | "サイト設定";
+type Screen = "ホーム" | "サイト戦略" | "サイト分析" | "競合分析" | "SEO・AI検索" | "パフォーマンス" | "改善管理" | "月次レポート" | "Agency" | "導線分析" | "ヒートマップ" | "ページ分析" | "流入分析" | "コンバージョン" | "AI分析" | "サイト設定";
 
 const nav: { label: Screen; group: string; icon: React.ElementType }[] = [
   { label: "ホーム", group: "OVERVIEW", icon: CirclesFour },
   { label: "サイト戦略", group: "PLAN", icon: Target },
   { label: "サイト分析", group: "UNDERSTAND", icon: MagnifyingGlass },
   { label: "競合分析", group: "UNDERSTAND", icon: UsersThree },
+  { label: "SEO・AI検索", group: "UNDERSTAND", icon: MagnifyingGlass },
   { label: "パフォーマンス", group: "MEASURE", icon: ChartLineUp },
+  { label: "ヒートマップ", group: "MEASURE", icon: MapTrifold },
   { label: "改善管理", group: "ACT", icon: Sparkle },
   { label: "月次レポート", group: "SHARE", icon: UserCircle },
 ];
@@ -159,20 +162,15 @@ function MeasurementNote({coverage}:{coverage?:number}){return <div className="m
 function PageTitle({eyebrow,title,sub}:{eyebrow:string;title:string;sub:string}){return <div className="page-head"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p className="sub">{sub}</p></div><div className="range">直近30日 <CaretDown size={14}/></div></div>}
 function FilterPills({items,active,setActive}:{items:string[];active:string;setActive:(x:string)=>void}){return <div className="pills">{items.map(i=><button key={i} className={active===i?"active":""} onClick={()=>setActive(i)}>{i}</button>)}</div>}
 
-function PerformanceScreen({ onNavigate }: { onNavigate: (screen: Screen) => void }) {
-  const [tab, setTab] = useState("Overview");
-  const tabs = ["Overview", "Acquisition", "Journey", "Pages", "Conversion", "Segments", "Funnel", "Heatmap", "Data Quality"];
+function PerformanceScreen() {
+  const [tab, setTab] = useState("流入・ユーザー");
+  const tabs = ["流入・ユーザー", "ページ・導線", "コンバージョン", "計測状態"];
   return <>
     <div className="performance-tabs">{tabs.map(item => <button className={tab === item ? "active" : ""} key={item} onClick={() => setTab(item)}>{item}</button>)}</div>
-    {tab === "Overview" && <Overview onNavigate={onNavigate} />}
-    {tab === "Acquisition" && <SimpleScreen screen="流入分析" />}
-    {tab === "Journey" && <FlowScreen />}
-    {tab === "Pages" && <SimpleScreen screen="ページ分析" />}
-    {tab === "Conversion" && <SimpleScreen screen="コンバージョン" />}
-    {tab === "Segments" && <PerformanceDetailScreen view="Segments" />}
-    {tab === "Funnel" && <PerformanceDetailScreen view="Funnel" />}
-    {tab === "Heatmap" && <HeatmapScreen />}
-    {tab === "Data Quality" && <PerformanceDetailScreen view="Data Quality" />}
+    {tab === "流入・ユーザー" && <div className="performance-stack"><SimpleScreen screen="流入分析" /><PerformanceDetailScreen view="Segments" /></div>}
+    {tab === "ページ・導線" && <div className="performance-stack"><SimpleScreen screen="ページ分析" /><FlowScreen /><PerformanceDetailScreen view="Funnel" /></div>}
+    {tab === "コンバージョン" && <SimpleScreen screen="コンバージョン" />}
+    {tab === "計測状態" && <PerformanceDetailScreen view="Data Quality" />}
   </>;
 }
 
@@ -245,7 +243,9 @@ function Dashboard() {
         {screen === "サイト戦略" && <StrategyScreen />}
         {screen === "サイト分析" && <SiteAnalysisScreen />}
         {screen === "競合分析" && <CompetitorsScreen />}
-        {screen === "パフォーマンス" && <PerformanceScreen onNavigate={setScreen} />}
+        {screen === "SEO・AI検索" && <SeoAiScreen />}
+        {screen === "パフォーマンス" && <PerformanceScreen />}
+        {screen === "ヒートマップ" && <HeatmapScreen />}
         {screen === "改善管理" && <ImproveScreen />}
         {screen === "月次レポート" && <ClientViewScreen />}
         {screen === "Agency" && <AgencyOverviewScreen />}

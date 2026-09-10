@@ -10,10 +10,14 @@
   data-endpoint="https://asia-northeast1-YOUR_PROJECT.cloudfunctions.net/collect"
   data-consent-mode="required"
   data-privacy-url="https://www.example.com/privacy"
+  data-brand-url="https://www.ismo-data.com/"
+  data-brand-logo="https://ismo-data.app/ismo-symbol.png"
 ></script>
 ```
 
 When consent mode is `required`, the tag displays its own consent banner. It stores the choice in local storage and starts measurement only after the visitor chooses Allow. An existing consent manager can still control it directly:
+
+The consent banner includes the ismo. logo and a subtle `Powered by ismo.` link. Use `data-brand-url` and `data-brand-logo` to configure them. Preview the production banner at `/consent-preview.html`.
 
 ```js
 window.MogciaAnalytics?.consent(true);

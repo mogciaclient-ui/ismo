@@ -53,4 +53,7 @@ export const mockAnalyticsProvider: AnalyticsProvider = {
   async saveGoogleResources() {},
   async getGooglePerformance() { return { ga4: null, searchConsole: null }; },
   async disconnectGoogleIntegration() {},
+  async runAiMentionMonitor(_siteId, queries) {
+    return { checkedAt: new Date().toISOString(), mentionRate: 50, queries: queries.map((query, index) => ({ query, mentioned: index % 2 === 0, answer: "デモモードのWeb検索結果です。Firebase接続時は実際の検索結果を記録します。", competitors: [], sources: [{ title: "デモ引用元", url: "https://example.com", isOwnSite: false }] })) };
+  },
 };
