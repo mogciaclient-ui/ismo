@@ -31,6 +31,8 @@ button:active { transform: translateY(1px); }
 .ismo-loader-visual { position: relative; display: grid; width: 126px; height: 126px; place-items: center; }
 .ismo-loader-logo { position: relative; z-index: 2; display: grid; width: 62px; height: 62px; place-items: center; overflow: hidden; border: 1px solid #ffb8c4; border-radius: 18px; background: #fff; box-shadow: 0 0 0 9px #ff647c0c, 0 0 34px #ff647c2c; animation: ismo-logo-breathe 2.2s ease-in-out infinite; }
 .ismo-loader-logo img { width: 54px; height: 54px; object-fit: cover; }
+.ismo-loader-mascot { position: relative; z-index: 2; display: grid; width: 102px; height: 102px; place-items: center; animation: ismo-cat-float 2.2s ease-in-out infinite; }
+.ismo-loader-mascot img { width: 96px; height: 96px; object-fit: contain; filter: drop-shadow(0 12px 18px #ff647c20); }
 .ismo-loader-orbit { position: absolute; inset: 4px; border: 1px solid transparent; border-top-color: var(--pink); border-right-color: #ffb8c455; border-radius: 50%; animation: ismo-orbit 2.6s linear infinite; }
 .ismo-loader-orbit.orbit-two { inset: 18px; border-top-color: transparent; border-right-color: transparent; border-bottom-color: #ff8da0; animation-direction: reverse; animation-duration: 1.8s; }
 .ismo-loader-spark { position: absolute; z-index: 3; width: 7px; height: 7px; border-radius: 50%; background: var(--pink); box-shadow: 0 0 13px var(--pink); animation: ismo-spark 1.8s ease-in-out infinite; }
@@ -48,6 +50,7 @@ button:active { transform: translateY(1px); }
 @keyframes ismo-type-reveal { from { max-width: 0; opacity: 0; } to { max-width: 260px; opacity: 1; } }
 @keyframes ismo-copy-pulse { 0%,100% { opacity: .45; } 50% { opacity: 1; } }
 @keyframes ismo-page-reveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ismo-cat-float { 0%, 100% { transform: translateY(2px) rotate(-1deg); } 50% { transform: translateY(-5px) rotate(1deg); } }
 
 .sidebar {
   background: #17181c;
@@ -256,6 +259,9 @@ button:active { transform: translateY(1px); }
 .prompts button:hover { border-color: var(--pink-light); color: #cb405b; }
 .scope { background: var(--charcoal); }
 .scope svg { color: var(--pink); }
+.mascot-scope { position: relative; min-height: 118px; align-items: center; overflow: hidden; padding-left: 108px; }
+.mascot-scope > img { position: absolute; bottom: -5px; left: 5px; width: 100px; height: 100px; object-fit: contain; filter: drop-shadow(0 8px 15px #0003); transition: transform .25s ease; }
+.mascot-scope:hover > img { transform: translateY(-3px) rotate(1deg); }
 .composer:focus-within { border-color: var(--pink-light); box-shadow: 0 0 0 3px #ff647c15; }
 .coming { background: var(--charcoal); }
 .coming svg { color: var(--pink); }
@@ -590,6 +596,7 @@ button:active { transform: translateY(1px); }
 .renewal-date { color: var(--muted); font-size: 8px; text-align: right; }
 .renewal-empty { display: grid; min-height: 330px; place-items: center; align-content: center; gap: 9px; margin-top: 14px; padding: 40px; text-align: center; }
 .renewal-empty > svg { color: var(--pink); font-size: 30px; }
+.renewal-empty .renewal-mascot { width: 150px; height: 150px; object-fit: contain; filter: drop-shadow(0 12px 20px #ff647c24); animation: ismo-cat-float 3s ease-in-out infinite; }
 .renewal-empty h2 { margin: 4px 0; font-size: 18px; }
 .renewal-empty p { max-width: 620px; margin: 0; color: var(--muted); font-size: 10px; line-height: 1.8; }
 .renewal-empty small { margin-top: 6px; color: #9b6370; }
