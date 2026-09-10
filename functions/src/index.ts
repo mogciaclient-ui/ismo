@@ -354,7 +354,7 @@ export const getHeatmap = onCall({ region, enforceAppCheck: true }, async reques
     pagePath: filters.pagePath ?? "/",
     device: filters.device ?? "mobile",
     sampleSize: sessions.size,
-    pageHeight: Math.max(1, ...clicks.map(event => Number(event.documentHeight ?? 0)), ...clicks.map(event => Number(event.documentY ?? 0) + Number(event.viewportHeight ?? 0))),
+    pageHeight: Math.max(900, ...events.map(event => Number(event.documentHeight ?? 0)), ...clicks.map(event => Number(event.documentY ?? 0) + Number(event.viewportHeight ?? 0))),
     points: clicks.slice(0, 2000).map(event => ({
       id: event.eventId,
       x: Number(event.normalizedX) * 100,

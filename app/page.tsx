@@ -51,7 +51,7 @@ import {
   YAxis,
 } from "recharts";
 
-type Screen = "ホーム" | "目的・ターゲット" | "リニューアル診断" | "サイト分析" | "競合分析" | "オーディエンス分析" | "SEO・AI検索" | "パフォーマンス" | "改善管理" | "月次レポート" | "Agency" | "導線分析" | "ヒートマップ" | "ページ分析" | "流入分析" | "コンバージョン" | "AI分析" | "サイト設定";
+type Screen = "ホーム" | "目的・ターゲット" | "リニューアル診断" | "サイト分析" | "競合分析" | "オーディエンス分析" | "SEO・AI検索" | "パフォーマンス" | "月次レポート" | "Agency" | "導線分析" | "ヒートマップ" | "ページ分析" | "流入分析" | "コンバージョン" | "AI分析" | "サイト設定";
 
 const nav: { label: Screen; group: string; icon: React.ElementType }[] = [
   { label: "ホーム", group: "OVERVIEW", icon: CirclesFour },
@@ -64,7 +64,6 @@ const nav: { label: Screen; group: string; icon: React.ElementType }[] = [
   { label: "パフォーマンス", group: "MEASURE", icon: ChartLineUp },
   { label: "ヒートマップ", group: "MEASURE", icon: MapTrifold },
   { label: "AI分析", group: "ACT", icon: Brain },
-  { label: "改善管理", group: "ACT", icon: Sparkle },
   { label: "月次レポート", group: "SHARE", icon: UserCircle },
 ];
 const navGroups = ["OVERVIEW", "PLAN", "UNDERSTAND", "MEASURE", "ACT", "SHARE"];
@@ -100,7 +99,7 @@ function Overview({ onNavigate }: { onNavigate: (s: Screen) => void }) {
       <section className="panel chart-panel"><PanelHead title="セッションとコンバージョン" note="過去30日"/><div className="legend"><span><i className="dot dark"/>セッション</span><span><i className="dot orange"/>CV</span></div><div className="chart-wrap">{liveChart.length?<ResponsiveContainer width="100%" height="100%"><AreaChart data={liveChart}><defs><linearGradient id="fillUsers" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#555860" stopOpacity={0.16}/><stop offset="100%" stopColor="#555860" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e7e7ea"/><XAxis dataKey="day" tickLine={false} axisLine={false}/><YAxis hide/><Tooltip contentStyle={{borderRadius:12,border:"1px solid #e7e7ea"}}/><Area type="monotone" dataKey="users" stroke="#555860" strokeWidth={2.5} fill="url(#fillUsers)"/><Area type="monotone" dataKey="cv" stroke="#ff647c" strokeWidth={2.5} fill="transparent"/></AreaChart></ResponsiveContainer>:<EmptyState/>}</div></section>
       <section className="panel source-panel"><PanelHead title="判定流入元 × 成果" note="セッション / CV"/><div className="source-list">{liveSources.map((s,i)=><div className="source-row" key={s.name}><div className="source-name"><i style={{background:["#242422","#f07443","#d4e45d","#8bbca7"][i%4]}}/>{s.name}</div><span>{s.sessions.toLocaleString()}</span><b>{s.outcomes} CV</b><em>{s.rate}%</em></div>)}{!liveSources.length&&<EmptyState/>}</div><button className="text-link" onClick={()=>onNavigate("流入分析")}>流入分析を見る <ArrowRight/></button></section>
     </div>
-    <section className="panel action-panel"><PanelHead title="次に確認すること" note="実測データから分析"/><div className="actions"><div className="priority high">AI</div><div><b>改善機会を分析する</b><p>流入・ページ・CVの実測集計をもとに、優先順位をAIへ質問できます。</p></div><div className="metric"><span>現在のCVR</span><b>{snapshot?.conversionRate??0}%</b></div><button onClick={()=>onNavigate("AI分析")}>改善案を見る <ArrowRight/></button></div></section>
+    <ImproveScreen embedded />
   </>;
 }
 
@@ -116,20 +115,33 @@ function FlowScreen() {
 }
 
 function HeatmapScreen() {
-  const { selectedSite } = useSiteWorkspace();
+  const { selectedSite, selectedSiteId } = useSiteWorkspace();
   const [mode, setMode] = useState("クリック");
   const [device, setDevice] = useState("Smartphone");
+  const [pagePath, setPagePath] = useState("/");
+  const [pages, setPages] = useState<string[]>(["/"]);
   const [heatmap, setHeatmap] = useState<import("@/lib/analytics").HeatmapSnapshot | null>(null);
   const handleData = useMemo(() => setHeatmap, []);
+  useEffect(() => {
+    setPagePath("/");
+    setPages(["/"]);
+    analyticsProvider.getOverview(selectedSiteId, getLast30DaysRange())
+      .then(snapshot => setPages(Array.from(new Set(["/", ...snapshot.pages.map(page => page.name)]))))
+      .catch(() => setPages(["/"]));
+  }, [selectedSiteId]);
   const middleReach = heatmap?.scrollReach.find(row => row.depth === 50)?.percentage ?? 0;
   const measuredHeight = heatmap?.pageHeight && heatmap.pageHeight > 520 ? heatmap.pageHeight : 900;
-  const previewHeight = Math.min(measuredHeight, 12000);
-  const previewUrl = `https://${selectedSite.domain || "www.mogcia.net"}`;
+  const previewHeight = Math.min(measuredHeight, 50000);
+  const previewUrl = new URL(pagePath, `https://${selectedSite.domain || "www.mogcia.net"}`).toString();
 
   return <>
     <PageTitle eyebrow="BEHAVIOR MAP" title="ヒートマップ" sub="計測に同意したセッションの操作傾向を確認します。" />
     <MeasurementNote />
-    <div className="filter-row"><FilterPills items={["クリック", "スクロール", "注目エリア"]} active={mode} setActive={setMode} /><FilterPills items={["PC", "Smartphone", "Tablet"]} active={device} setActive={setDevice} /></div>
+    <div className="filter-row heat-filters">
+      <label className="heat-page-select"><span>表示するページ</span><select value={pagePath} onChange={event => setPagePath(event.target.value)}>{pages.map(path => <option value={path} key={path}>{path === "/" ? "トップページ（/）" : path}</option>)}</select></label>
+      <FilterPills items={["クリック", "スクロール", "注目エリア"]} active={mode} setActive={setMode} />
+      <FilterPills items={["PC", "Smartphone", "Tablet"]} active={device} setActive={setDevice} />
+    </div>
     <div className="heat-layout">
       <section className="panel heat-aside heat-summary">
         <div className="heat-summary-metrics">
@@ -141,11 +153,11 @@ function HeatmapScreen() {
         <div className="heat-legend"><span><i className="hot" />クリック位置</span><span><i className="warm" />中程度</span><span><i className="cold" />少ない</span></div>
       </section>
       <section className="panel heat-preview">
-        <div className="browser-bar"><i /><i /><i /><span>{selectedSite.domain || "URL未設定"}</span><em>SCROLL PREVIEW</em></div>
+        <div className="browser-bar"><i /><i /><i /><span>{selectedSite.domain || "URL未設定"}{pagePath === "/" ? "" : pagePath}</span><em>FULL PAGE PREVIEW</em></div>
         <div className={`site-preview ${device.toLowerCase()}`}>
           <div className="site-preview-canvas" style={{ height: previewHeight }}>
             <iframe src={previewUrl} title={`${selectedSite.name} ライブプレビュー`} loading="lazy" tabIndex={-1} />
-            <HeatmapOverlay device={device} mode={mode} onData={handleData} />
+            <HeatmapOverlay device={device} mode={mode} pagePath={pagePath} onData={handleData} />
           </div>
         </div>
       </section>
@@ -272,7 +284,7 @@ function Dashboard() {
       <div className="sidebar-bottom"><button className={screen === "サイト設定" ? "active" : ""} onClick={() => setScreen("サイト設定")}><Gear />サイト設定</button><div className="profile"><div>MK</div><span><b>MOGCIA Inc.</b><small>Admin</small></span><CaretDown /></div></div>
     </aside>
     <section className="workspace">
-      <header className="topbar"><div className="crumb"><span>ismo<span className="brand-dot">.</span> ANALYTICS</span><ArrowRight />{title}</div><div className="top-actions">{screen === "月次レポート" ? <button className="back-admin" onClick={() => setScreen("ホーム")}><ArrowRight />管理画面へ戻る</button> : <div className="status"><i />データ連携中</div>}</div></header>
+      <header className="topbar"><div className="crumb"><span>ismo<span className="brand-dot">.</span> ANALYTICS</span><ArrowRight />{title}</div><div className="top-actions"><div className="status"><i />データ連携中</div></div></header>
       <div className="content" key={`${selectedSiteId}-${screen}`}>
         {screen === "ホーム" && <Overview onNavigate={setScreen} />}
         {screen === "目的・ターゲット" && <StrategyScreen />}
@@ -283,7 +295,6 @@ function Dashboard() {
         {screen === "SEO・AI検索" && <SeoAiScreen />}
         {screen === "パフォーマンス" && <PerformanceScreen />}
         {screen === "ヒートマップ" && <HeatmapScreen />}
-        {screen === "改善管理" && <ImproveScreen />}
         {screen === "月次レポート" && <ClientViewScreen />}
         {screen === "Agency" && <AgencyOverviewScreen />}
         {screen === "AI分析" && <AiScreen />}

@@ -21,7 +21,7 @@ export function RenewalDiagnosisScreen() {
   const [error, setError] = useState("");
 
   useEffect(() => { setSettings(null); setDiagnosis(null); analyticsProvider.getSiteSettings(selectedSiteId).then(site => { setSettings(site); setDiagnosis(site.renewalDiagnosis ?? null); }).catch(() => setError("サイト設定を読み込めませんでした。")); }, [selectedSiteId]);
-  const run = async () => { setRunning(true); setError(""); try { const result = await analyticsProvider.runRenewalDiagnosis(selectedSiteId, getLast30DaysRange()); setDiagnosis(result); } catch (cause) { const code = typeof cause === "object" && cause && "code" in cause ? String(cause.code) : ""; setError(code.includes("permission-denied") ? "診断を実行できるのはMOGCIA権限だけです。" : "診断を実行できませんでした。サイト分析と計測状態を確認してください。"); } finally { setRunning(false); } };
+  const run = async () => { setRunning(true); setError(""); try { const result = await analyticsProvider.runRenewalDiagnosis(selectedSiteId, getLast30DaysRange()); setDiagnosis(result); } catch (cause) { const code = typeof cause === "object" && cause && "code" in cause ? String(cause.code) : ""; const message = code.includes("permission-denied") ? "診断を実行できるのはMOGCIA権限だけです。" : code.includes("not-found") ? "診断機能がまだサーバーへ反映されていません。Firebase Functionsをデプロイしてください。" : code.includes("failed-precondition") ? "診断に必要な設定が不足しています。目的・ターゲットとサイト設定を確認してください。" : "診断処理でエラーが発生しました。時間をおいて再度お試しください。"; setError(message); } finally { setRunning(false); } };
 
   if (!settings) return <BrandLoader label="診断に必要なデータを確認しています" />;
   const readiness = [settings.strategy?.siteRoles?.length ? "サイトの役割" : null, settings.strategy?.audience ? "ターゲット" : null, settings.siteAnalysis ? "サイト分析" : null, settings.competitorAnalysis ? "競合分析" : null].filter(Boolean);

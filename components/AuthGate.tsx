@@ -3,7 +3,7 @@
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import Image from "next/image";
 import { Eye, EyeSlash } from "@phosphor-icons/react";
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
+import { onAuthStateChanged, signInWithEmailAndPassword, type User } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { getCurrentSiteId, getFirebaseServices, isFirebaseConfigured } from "@/lib/firebase/client";
 import { SiteWorkspaceProvider } from "@/lib/site-workspace";
@@ -80,5 +80,5 @@ export function AuthGate({ children }: { children: ReactNode }) {
   </div></main>;
 
   if (!siteReady) return <BrandLoader fullPage label={error || "サイトを準備しています"} />;
-  return <SiteWorkspaceProvider><button className="global-signout" onClick={() => signOut(getFirebaseServices().auth)}>ログアウト</button>{children}</SiteWorkspaceProvider>;
+  return <SiteWorkspaceProvider>{children}</SiteWorkspaceProvider>;
 }

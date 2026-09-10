@@ -7,7 +7,7 @@ import { useSiteWorkspace } from "@/lib/site-workspace";
 
 const range = getLast30DaysRange();
 
-export function HeatmapOverlay({ device, mode, onData }: { device: string; mode: string; onData?: (data: HeatmapSnapshot | null) => void }) {
+export function HeatmapOverlay({ device, mode, pagePath, onData }: { device: string; mode: string; pagePath: string; onData?: (data: HeatmapSnapshot | null) => void }) {
   const { selectedSiteId } = useSiteWorkspace();
   const [data, setData] = useState<HeatmapSnapshot | null>(null);
   const [error, setError] = useState(false);
@@ -16,10 +16,10 @@ export function HeatmapOverlay({ device, mode, onData }: { device: string; mode:
   useEffect(() => {
     setData(null);
     setError(false);
-    analyticsProvider.getHeatmap(selectedSiteId, range, { device: mappedDevice, pagePath: "/" })
+    analyticsProvider.getHeatmap(selectedSiteId, range, { device: mappedDevice, pagePath })
       .then(value => { setData(value); onData?.(value); })
       .catch(() => { setError(true); onData?.(null); });
-  }, [mappedDevice, onData, selectedSiteId]);
+  }, [mappedDevice, onData, pagePath, selectedSiteId]);
 
   if (error) return <div className="heat-state">データを読み込めませんでした</div>;
   if (!data) return <div className="heat-state"><i />ヒートマップを集計中</div>;
