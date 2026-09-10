@@ -405,6 +405,11 @@ button:active { transform: translateY(1px); }
 .agency-link small { margin-top: 2px; color: #858891; font-size: 7px; }
 
 .sidebar nav { gap: 0; overflow-x: hidden; overflow-y: auto; scrollbar-width: none; }
+.sidebar nav a, .sidebar-bottom > a { display: flex; height: 43px; align-items: center; gap: 12px; padding: 0 12px; border-radius: 9px; color: #aaa9a2; font-size: 11px; font-weight: 400; text-decoration: none; }
+.sidebar nav a:hover, .sidebar nav a.active, .sidebar-bottom > a:hover, .sidebar-bottom > a.active { color: #fff; background: #2b2c31; }
+.sidebar nav a.active { box-shadow: inset 3px 0 var(--pink); }
+.sidebar nav a.active svg { color: var(--pink); }
+.sidebar-bottom > a { width: 100%; }
 .sidebar nav::-webkit-scrollbar { display: none; }
 .nav-group { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; }
 .nav-group > span { padding: 0 12px 4px; color: #686b73; font-size: 7px; letter-spacing: .16em; }
@@ -912,6 +917,8 @@ button:active { transform: translateY(1px); }
 }
 
 @media (max-width: 760px) {
+  .sidebar nav a { justify-content: center; font-size: 0; }
+  .sidebar-bottom > a { display: none; }
   .auth-layout { display: block; max-width: 440px; min-height: 0; }
   .auth-story { min-height: 220px; padding: 28px; }
   .auth-story-copy { margin: 32px 0; }
