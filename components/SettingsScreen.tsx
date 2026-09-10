@@ -51,7 +51,8 @@ export function SettingsScreen() {
 
   const collectorUrl = process.env.NEXT_PUBLIC_MOGCIA_COLLECTOR_URL ?? "COLLECTOR_URL_NOT_CONFIGURED";
   const scriptUrl = typeof window === "undefined" ? "/mogcia-analytics.js" : `${window.location.origin}/mogcia-analytics.js`;
-  const snippet = `<script defer src="${scriptUrl}"\n  data-site-id="${settings.id}"\n  data-endpoint="${collectorUrl}"\n  data-consent-mode="${settings.consentMode}"${settings.privacyUrl ? `\n  data-privacy-url="${settings.privacyUrl}"` : ""}></script>`;
+  const dashboardOrigin = typeof window === "undefined" ? "https://ismo-data.app" : window.location.origin;
+  const snippet = `<script defer src="${scriptUrl}"\n  data-site-id="${settings.id}"\n  data-endpoint="${collectorUrl}"\n  data-dashboard-origin="${dashboardOrigin}"\n  data-consent-mode="${settings.consentMode}"${settings.privacyUrl ? `\n  data-privacy-url="${settings.privacyUrl}"` : ""}></script>`;
 
   return <>
     <div className="page-head"><div><p className="eyebrow">MEASUREMENT SETUP</p><h1>サイト設定</h1><p className="sub">Firebase接続後も同じ画面から計測・ゴール・権限を管理します。</p></div><div className={`mode-badge ${analyticsMode}`}><i/>{analyticsMode === "firebase" ? "Firebase接続" : "デモデータ"}</div></div>

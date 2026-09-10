@@ -767,7 +767,7 @@ export const getAiInsight = onCall({ region, enforceAppCheck: true, secrets: [op
     model: openAiModel,
     max_output_tokens: 700,
     input: [
-      { role: "system", content: "あなたはWeb解析担当です。提供された集計値だけを根拠に、日本語で簡潔に回答してください。個人の推測、存在しない比較値、断定的な因果関係を作らないでください。回答は現状、根拠、推奨アクションの順にしてください。" },
+      { role: "system", content: "あなたはWeb解析担当です。提供された集計値だけを根拠に、日本語で簡潔に回答してください。個人の推測、存在しない比較値、断定的な因果関係を作らないでください。現状、根拠、次に行うことの順に、会話として自然で読みやすく回答してください。Markdownは使わず、#、**、バッククォート、Markdownリンクを出力しないでください。見出しは記号なしの短い日本語、箇条書きは必要な場合だけ「・」を使用してください。" },
       { role: "user", content: `質問: ${question}\n集計値: ${JSON.stringify(summary)}` },
     ],
   });

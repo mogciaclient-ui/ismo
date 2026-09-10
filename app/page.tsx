@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { HeatmapOverlay } from "@/components/HeatmapOverlay";
@@ -99,6 +99,9 @@ function HeatmapScreen() {
   const [pagePath, setPagePath] = useState("/");
   const [pages, setPages] = useState<string[]>(["/"]);
   const [heatmap, setHeatmap] = useState<import("@/lib/analytics").HeatmapSnapshot | null>(null);
+  const [liveHeight, setLiveHeight] = useState<number | null>(null);
+  const [previewConnected, setPreviewConnected] = useState(false);
+  const previewFrameRef = useRef<HTMLIFrameElement>(null);
   const handleData = useMemo(() => setHeatmap, []);
   useEffect(() => {
     setPagePath("/");
@@ -109,8 +112,28 @@ function HeatmapScreen() {
   }, [selectedSiteId]);
   const middleReach = heatmap?.scrollReach.find(row => row.depth === 50)?.percentage ?? 0;
   const measuredHeight = heatmap?.pageHeight && heatmap.pageHeight > 520 ? heatmap.pageHeight : 900;
-  const previewHeight = Math.min(measuredHeight, 50000);
   const previewUrl = new URL(pagePath, `https://${selectedSite.domain || "www.mogcia.net"}`).toString();
+  const previewOrigin = new URL(previewUrl).origin;
+  const previewHeight = Math.min(liveHeight ?? measuredHeight, 50000);
+
+  useEffect(() => {
+    setLiveHeight(null);
+    setPreviewConnected(false);
+  }, [device, pagePath, selectedSiteId]);
+
+  useEffect(() => {
+    const receiveMetrics = (event: MessageEvent) => {
+      if (event.origin !== previewOrigin || event.source !== previewFrameRef.current?.contentWindow) return;
+      const value = event.data as { type?: string; siteId?: string; pagePath?: string; documentHeight?: number } | null;
+      if (!value || value.type !== "ismo:page-metrics" || value.siteId !== selectedSiteId || value.pagePath !== pagePath) return;
+      const nextHeight = Number(value.documentHeight);
+      if (!Number.isFinite(nextHeight) || nextHeight < 520) return;
+      setLiveHeight(Math.min(Math.ceil(nextHeight), 50000));
+      setPreviewConnected(true);
+    };
+    window.addEventListener("message", receiveMetrics);
+    return () => window.removeEventListener("message", receiveMetrics);
+  }, [pagePath, previewOrigin, selectedSiteId]);
 
   return <>
     <PageTitle eyebrow="BEHAVIOR MAP" title="ヒートマップ" sub="計測に同意したセッションの操作傾向を確認します。" />
@@ -131,10 +154,10 @@ function HeatmapScreen() {
         <div className="heat-legend"><span><i className="hot" />クリック位置</span><span><i className="warm" />中程度</span><span><i className="cold" />少ない</span></div>
       </section>
       <section className="panel heat-preview">
-        <div className="browser-bar"><i /><i /><i /><span>{selectedSite.domain || "URL未設定"}{pagePath === "/" ? "" : pagePath}</span><em>FULL PAGE PREVIEW</em></div>
+        <div className="browser-bar"><i /><i /><i /><span>{selectedSite.domain || "URL未設定"}{pagePath === "/" ? "" : pagePath}</span><em className={previewConnected ? "connected" : ""}>{previewConnected ? "LIVE FULL PAGE" : "RECORDED HEIGHT"}</em></div>
         <div className={`site-preview ${device.toLowerCase()}`}>
           <div className="site-preview-canvas" style={{ height: previewHeight }}>
-            <iframe src={previewUrl} title={`${selectedSite.name} ライブプレビュー`} loading="lazy" tabIndex={-1} />
+            <iframe ref={previewFrameRef} src={previewUrl} title={`${selectedSite.name} ライブプレビュー`} loading="lazy" tabIndex={-1} />
             <HeatmapOverlay device={device} mode={mode} pagePath={pagePath} onData={handleData} />
           </div>
         </div>
@@ -151,6 +174,18 @@ const aiAnswers:Record<string,string>={
   "来月やることを教えて":"来月は①料金ページのスマホCTA改善、②主要SNS流入向けファーストビューの実績導線追加、③採用ページで社員紹介の配置変更、の順で実施し、2週間ごとに到達率とCVRを比較してください。"
 };
 
+function cleanAiAnswer(value: string) {
+  return value
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/__(.*?)__/g, "$1")
+    .replace(/^[-*]\s+/gm, "・")
+    .replace(/\[([^\]]+)]\(([^)]+)\)/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function AiScreen() {
   const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; text: string }>>([{ role: "assistant", text: "サイトの数字について、気になることを聞いてください。実測データをもとに一緒に整理します。" }]);
   const [draft, setDraft] = useState("");
@@ -163,7 +198,7 @@ function AiScreen() {
     setLoading(true);
     try {
       const result = await analyticsProvider.getAiInsight(getCurrentSiteId(), getLast30DaysRange(), question);
-      setMessages(current => [...current, { role: "assistant", text: result.answer }]);
+      setMessages(current => [...current, { role: "assistant", text: cleanAiAnswer(result.answer) }]);
     } catch (error) {
       const text = error instanceof Error && error.message.includes("resource-exhausted") ? "本日のAI分析上限（20回）に達しました。明日また利用できます。" : "分析を実行できませんでした。少し時間をおいて、もう一度お試しください。";
       setMessages(current => [...current, { role: "assistant", text }]);

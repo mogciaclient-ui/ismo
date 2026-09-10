@@ -183,6 +183,10 @@ button:active { transform: translateY(1px); }
   letter-spacing: .1em;
 }
 
+.browser-bar em.connected {
+  color: #2d8064;
+}
+
 .site-preview {
   position: relative;
   min-height: 900px;
@@ -240,7 +244,7 @@ button:active { transform: translateY(1px); }
 .chat-thread { display: flex; flex: 1; flex-direction: column; gap: 18px; min-height: 0; max-height: 560px; overflow-y: auto; padding: 2px 3px 24px; }
 .message.user p { background: var(--pink); box-shadow: 0 5px 16px #ff647c20; }
 .message.assistant { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 9px; align-items: start; margin-top: 0; }
-.message.assistant > div:last-child > p { margin: 5px 0 0; padding: 12px 15px; border: 1px solid var(--line); border-radius: 4px 13px 13px 13px; color: #41434a; background: #fff; box-shadow: 0 2px 8px #17181c08; }
+.message.assistant > div:last-child > p { margin: 5px 0 0; padding: 12px 15px; border: 1px solid var(--line); border-radius: 4px 13px 13px 13px; color: #41434a; background: #fff; box-shadow: 0 2px 8px #17181c08; white-space: pre-line; }
 .ai-avatar { display: grid; width: 32px; height: 32px; place-items: center; overflow: hidden; border: 1px solid #ffd5dc; border-radius: 10px; background: #fff; }
 .ai-avatar img { width: 28px; height: 28px; object-fit: cover; }
 .message .bot { min-height: 16px; }

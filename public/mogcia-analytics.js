@@ -11,6 +11,7 @@
     privacyUrl: script.dataset.privacyUrl || "",
     brandUrl: script.dataset.brandUrl || "https://www.ismo-data.com/",
     brandLogo: script.dataset.brandLogo || new URL("/ismo-symbol.png", script.src).toString(),
+    dashboardOrigin: script.dataset.dashboardOrigin || "https://ismo-data.app",
     debug: script.dataset.debug === "true",
   };
   if (!config.siteId) return;
@@ -24,6 +25,60 @@
   var consentBanner;
   var pageStartedAt = Date.now();
   var lastPath = location.pathname;
+  var previewResizeObserver;
+  var previewMutationObserver;
+  var previewHeightTimer;
+
+  function dashboardOrigin() {
+    var allowed = [config.dashboardOrigin];
+    if (config.debug) allowed.push("http://localhost:3000", "http://127.0.0.1:3000");
+    try {
+      var parentOrigin = new URL(document.referrer).origin;
+      return allowed.indexOf(parentOrigin) >= 0 ? parentOrigin : null;
+    } catch (_) { return null; }
+  }
+  function currentDocumentHeight() {
+    var body = document.body;
+    var root = document.documentElement;
+    return Math.max(
+      root ? root.scrollHeight : 0,
+      root ? root.offsetHeight : 0,
+      body ? body.scrollHeight : 0,
+      body ? body.offsetHeight : 0,
+      innerHeight
+    );
+  }
+  function sendPreviewMetrics() {
+    if (window.parent === window) return;
+    var targetOrigin = dashboardOrigin();
+    if (!targetOrigin) return;
+    window.parent.postMessage({
+      type: "ismo:page-metrics",
+      version: 1,
+      siteId: config.siteId,
+      pagePath: location.pathname,
+      documentHeight: currentDocumentHeight(),
+      viewportWidth: innerWidth,
+    }, targetOrigin);
+  }
+  function schedulePreviewMetrics() {
+    clearTimeout(previewHeightTimer);
+    previewHeightTimer = setTimeout(sendPreviewMetrics, 80);
+  }
+  function observePreviewHeight() {
+    if (window.parent === window || !dashboardOrigin()) return;
+    sendPreviewMetrics();
+    if (typeof ResizeObserver !== "undefined") {
+      previewResizeObserver = new ResizeObserver(schedulePreviewMetrics);
+      previewResizeObserver.observe(document.documentElement);
+      if (document.body) previewResizeObserver.observe(document.body);
+    } else if (typeof MutationObserver !== "undefined") {
+      previewMutationObserver = new MutationObserver(schedulePreviewMetrics);
+      previewMutationObserver.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+    }
+    addEventListener("load", schedulePreviewMetrics, { once: true });
+    addEventListener("resize", schedulePreviewMetrics, { passive: true });
+  }
 
   function uuid() {
     return crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -143,6 +198,7 @@
     pageStartedAt = Date.now();
     scrollSent = {};
     track("page_view");
+    schedulePreviewMetrics();
   }
   ["pushState", "replaceState"].forEach(function (method) {
     var original = history[method];
@@ -223,9 +279,14 @@
   document.addEventListener("click", onClick, { capture: true, passive: true });
   addEventListener("scroll", onScroll, { passive: true });
   addEventListener("popstate", routeChanged);
-  addEventListener("pagehide", function () { trackEngagement(); flush(); });
-  window.MogciaAnalytics = { track: track, flush: flush, consent: consent, showConsent: function () { showConsent(true); }, version: "1.3.0" };
+  addEventListener("pagehide", function () {
+    trackEngagement();
+    flush();
+    if (previewResizeObserver) previewResizeObserver.disconnect();
+    if (previewMutationObserver) previewMutationObserver.disconnect();
+  });
+  window.MogciaAnalytics = { track: track, flush: flush, consent: consent, showConsent: function () { showConsent(true); }, version: "1.4.0" };
   track("page_view");
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { showConsent(false); }, { once: true });
-  else showConsent(false);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { showConsent(false); observePreviewHeight(); }, { once: true });
+  else { showConsent(false); observePreviewHeight(); }
 })();
